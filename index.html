@@ -1088,5 +1088,196 @@ function bvUpd(sc,b,D){
  sc.fx=sc.fx.filter(f=>(f.t+=D)<f.T);sc.txt=sc.txt.filter(f=>(f.t+=D)<f.T);
 }
 </script> 
+ <script>
+// ═══ 전투 연출 패치 2 (기마병 우회 돌격 · 양쪽 진영 · 전투 효과음) ═══
+let ZA=null,ZM=null,ZNB=null;const ZL={};
+function zac(){
+ if(typeof MUTE!=='undefined'&&MUTE)return null;
+ try{
+  if(!ZA){ZA=new(window.AudioContext||window.webkitAudioContext)();ZM=ZA.createGain();ZM.gain.value=.6;const cp=ZA.createDynamicsCompressor();ZM.connect(cp);cp.connect(ZA.destination)}
+  if(ZA.state==='suspended')ZA.resume();return ZA;
+ }catch(e){return null}
+}
+function znoise(c){if(!ZNB){const n=Math.floor(c.sampleRate*1.5),b=c.createBuffer(1,n,c.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;ZNB=b}return ZNB}
+function zN(t0,dur,ft,f0,f1,q,v){
+ const c=ZA,s=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();
+ s.buffer=znoise(c);s.loop=true;f.type=ft;f.frequency.setValueAtTime(f0,t0);f.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t0+dur);f.Q.value=q;
+ g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(Math.max(.0002,v),t0+Math.min(.02,dur*.25));g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+ s.connect(f);f.connect(g);g.connect(ZM);s.start(t0,Math.random());s.stop(t0+dur+.05);
+}
+function zT(t0,dur,type,f0,f1,v,att){
+ const c=ZA,o=c.createOscillator(),g=c.createGain();
+ o.type=type;o.frequency.setValueAtTime(f0,t0);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t0+dur);
+ g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(Math.max(.0002,v),t0+(att||.005));g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+ o.connect(g);g.connect(ZM);o.start(t0);o.stop(t0+dur+.05);
+}
+// 개별 효과음: bow(활 시위+화살 날아가는 소리) / thunk(화살 적중) / sword(칼 부딪힘) / spear(창 부딪힘) / shield(방패 막는 소리)
+function zS(k,v,dly,force){
+ try{
+  const c=zac();if(!c)return;
+  const gp={bow:.08,thunk:.1,sword:.11,spear:.16,shield:.2}[k]||.1;
+  if(!force){if(ZL[k]&&c.currentTime-ZL[k]<gp)return;ZL[k]=c.currentTime}
+  const t=c.currentTime+(dly||0)+.005;v=v==null?1:v;
+  if(k==='bow'){zT(t,.1,'triangle',260,110,.07*v,.002);zN(t,.32,'bandpass',2200,600,1.1,.09*v)}
+  else if(k==='thunk'){zT(t,.09,'sine',150,55,.1*v,.003);zN(t,.05,'highpass',2500,1500,.7,.04*v)}
+  else if(k==='sword'){const f=1700+Math.random()*1500;[1,2.76,5.4].forEach((m,i)=>zT(t,.22-.05*i,'sine',f*m,f*m*.98,.06*v/(i+1),.001));zN(t,.05,'highpass',5000,4000,.7,.12*v);zT(t,.06,'square',f*.5,f*.4,.03*v,.001)}
+  else if(k==='spear'){const f=900+Math.random()*500;[1,2.3,4.1].forEach((m,i)=>zT(t,.16-.03*i,'sine',f*m,f*m*.97,.05*v/(i+1),.001));zT(t,.12,'sine',200,90,.12*v,.003);zN(t,.07,'bandpass',1500,800,2,.1*v)}
+  else if(k==='shield'){zT(t,.2,'sine',130,45,.28*v,.003);zN(t,.14,'lowpass',1200,200,.8,.2*v);zT(t,.07,'triangle',340,210,.1*v,.001)}
+ }catch(e){}
+}
+// 군사들의 함성
+function zCry(v,dur,dly){
+ try{
+  const c=zac();if(!c)return;
+  const t=c.currentTime+(dly||0)+.01,d=dur||1.2,out=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter();
+  out.gain.setValueAtTime(.0001,t);out.gain.exponentialRampToValueAtTime(.16*v,t+.18);out.gain.setValueAtTime(.16*v,t+d*.55);out.gain.exponentialRampToValueAtTime(.0001,t+d);
+  f1.type=f2.type='bandpass';f1.frequency.value=720;f2.frequency.value=1250;f1.Q.value=2.2;f2.Q.value=3;
+  f1.connect(out);f2.connect(out);out.connect(ZM);
+  for(let i=0;i<6;i++){
+   const o=c.createOscillator(),g=c.createGain(),b0=95+Math.random()*90;
+   o.type='sawtooth';o.frequency.setValueAtTime(b0,t);o.frequency.linearRampToValueAtTime(b0*1.3,t+d*.35);o.frequency.linearRampToValueAtTime(b0*.92,t+d);
+   g.gain.value=.5;o.connect(g);g.connect(f1);g.connect(f2);o.start(t);o.stop(t+d+.05);
+  }
+  const s=c.createBufferSource(),nf=c.createBiquadFilter(),ng=c.createGain();
+  s.buffer=znoise(c);s.loop=true;nf.type='bandpass';nf.frequency.value=1100;nf.Q.value=.6;ng.gain.value=.5;
+  s.connect(nf);nf.connect(ng);ng.connect(out);s.start(t,Math.random());s.stop(t+d+.05);
+ }catch(e){}
+}
+function zHorn(dly){
+ try{
+  const c=zac();if(!c)return;
+  const t=c.currentTime+(dly||0)+.01,d=1.6,lp=c.createBiquadFilter(),g=c.createGain();
+  lp.type='lowpass';lp.frequency.setValueAtTime(300,t);lp.frequency.linearRampToValueAtTime(900,t+.5);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.14,t+.35);g.gain.setValueAtTime(.14,t+d*.6);g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  lp.connect(g);g.connect(ZM);
+  [110,164.8,110.7].forEach(f=>{const o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(f,t);o.frequency.linearRampToValueAtTime(f*1.04,t+.4);o.connect(lp);o.start(t);o.stop(t+d+.05)});
+ }catch(e){}
+}
+function zDrum(dly){try{const c=zac();if(!c)return;const t=c.currentTime+(dly||0)+.01;zT(t,.3,'sine',110,45,.35,.003);zN(t,.12,'lowpass',400,120,.8,.12)}catch(e){}}
+function zHoof(dly,n){try{const c=zac();if(!c)return;const t=c.currentTime+(dly||0)+.01;for(let i=0;i<n;i++){const tt=t+i*.11+(i%2?.04:0);zT(tt,.09,'sine',95,50,.1,.002);zN(tt,.07,'lowpass',500,150,.9,.05)}}catch(e){}}
+function zAlive(sc,k){return[...sc.A,...sc.B].filter(x=>x.al&&x.k===k).length}
+function zStart(b){zHorn(0);zDrum(.15);zDrum(.55);zCry(.9,1.3,.45);zCry(.7,1.2,.65)}
+function zRound(sc,b,a){
+ zCry(.5+.1*Math.min(3,b.ri),1.1,.05);
+ const cv=zAlive(sc,'cavalry');if(cv)zHoof(0,Math.min(14,4+Math.round(cv/3)));
+}
+function zHit(sc,b,r){
+ // 기병 후미 타격 연출 (효과음을 꺼도 표시)
+ const u=sc.u;['A','B'].forEach(s=>{
+  const arr=(s==='A'?sc.A:sc.B).filter(x=>x.al&&x.k==='cavalry'&&x.x!=null),d=s==='A'?1:-1;
+  if(!arr.length)return;
+  arr.forEach((x,i)=>{if(i%2===0)for(let j=0;j<3;j++)sc.fx.push({ty:'sp',x:x.x+d*8*u,y:x.y-20*u,vx:(Math.random()-.5)*260,vy:-Math.random()*200,t:0,T:.4+Math.random()*.4})});
+  if(arr.length>=3){const mx=arr.reduce((p,x)=>p+x.x,0)/arr.length,my=arr.reduce((p,x)=>p+x.y,0)/arr.length;sc.txt.push({x:mx,y:my-50*u,t:0,T:1.4,s:'기병 후미 타격!',col:'#fde68a'})}
+  zS('shield',.8,.05,1);
+ });
+ const c=zac();if(!c)return;
+ const m={sword:zAlive(sc,'infantry')+zAlive(sc,'cavalry')*.5,spear:zAlive(sc,'spear'),shield:zAlive(sc,'shield'),bow:zAlive(sc,'bow')},keys=[];
+ Object.keys(m).forEach(k=>{const w=m[k]>0?Math.min(6,Math.round(m[k]/4)+1):0;for(let i=0;i<w;i++)keys.push(k==='bow'?'thunk':k)});
+ if(!keys.length)keys.push('sword');
+ const n=Math.min(14,3+Math.round((r.la+r.lb)/((b.st.ia+b.st.ib)||1)*50));
+ for(let i=0;i<n;i++)zS(keys[Math.random()*keys.length|0],.9,i*.045+Math.random()*.05,1);
+}
+function zEnd(b){
+ if(b.pw){zCry(1,1.8,.1);zCry(.8,1.6,.35)}
+ else{try{const c=zac();if(c){zT(c.currentTime+.05,.7,'sine',160,70,.15,.01)}}catch(e){}zCry(.6,1.5,.2)}
+}
+
+// ── 대열 배치(패치 1에서 depth 값 추가) ──
+function bvLay(sc,fx,u0,tac){
+ const W=sc.W,CG=9,TG=15*(tac==='guard'?.8:tac==='assault'?1.3:1),R0=Math.max(3,Math.min(14,Math.floor((sc.y1-sc.y0)/(11*u0)))),L={};
+ const room=Math.min(fx,(W>=900?W-312:W)-fx)-24*u0-sc.gap*W/2;
+ [sc.A,sc.B].forEach(arr=>{const n={},o={},r={};arr.forEach(u=>{n[u.k]=u.n});let run=0;
+  BZT.forEach(k=>{if(!n[k])return;const rows=k==='cavalry'?2:Math.min(n[k],R0),cols=k==='cavalry'?Math.ceil(n[k]/4):Math.ceil(n[k]/rows);r[k]=rows;o[k]=run;run+=cols*CG+TG});
+  const sq=Math.max(.3,Math.min(1,room/(Math.max(1,run-TG)*u0)));
+  L[arr[0].s]={r,o,sq,dep:Math.max(1,run-TG)*u0*sq}});
+ return L;
+}
+
+// ── 전장 갱신: 기마병 우회 돌격 + 효과음 ──
+function bvUpd(sc,b,D){
+ const W=sc.W,H=sc.H,u0=Math.max(.5,Math.min(H/540,W/820))*(sc.mx>40?1-.3*Math.min(1,(sc.mx-40)/50):1),a=sc.an,cl=a?Math.pow(Math.sin(Math.min(1,sc.p)*Math.PI),.6):0,tac=sc.tac,pl=b.playerSide;
+ sc.u=u0;sc.y0=H*.62;sc.y1=H*.9;
+ const gapT=(b.ri>0||a)?.04:.3;sc.gap+=(gapT-sc.gap)*Math.min(1,D*1.3);sc.shift+=(sc.advT-sc.shift)*Math.min(1,D*1.5);
+ const fx=W*(.42+.1*sc.shift),ret=sc.retT>=0?Math.min(1,sc.retT):0,my=(sc.y0+sc.y1)/2;sc.fx0=fx;const LY=bvLay(sc,fx,u0,tac);
+ if(a&&!a.zs){a.zs=1;try{zRound(sc,b,a)}catch(e){}}
+ const ev1=a&&a.r.ev===1?(a.r.es?'A':'B'):'',fireS=tac==='fire'&&b.st.fire>0?b.st.tacSide:'';
+ [sc.A,sc.B].forEach(arr=>arr.forEach(u=>{
+  const d=u.s==='A'?1:-1;
+  const sl=bvSlot(LY[u.s],u,sc,u0,my);let tx=fx-d*(sc.gap*W/2+sl[0]),ty=sl[1];
+  u.ext=0;u.sw=0;u.back=false;
+  if(u.al&&cl>0){
+   const sw=Math.sin(sc.t*7+u.ph);
+   if(u.k==='spear'){u.ext=Math.max(0,sw)*cl;tx+=d*u.ext*12*u0;if(u.ext>.9&&!sc.skip&&Math.random()<.12)zS('spear',.5+.5*cl)}
+   else if(u.k==='shield'){tx+=d*cl*(.5+.5*sw)*5*u0;if(!sc.skip&&Math.random()<D*2*cl)zS('shield',.5+.5*cl)}
+   else if(u.k==='infantry'){u.sw=cl*(sw*.5+.5);tx+=d*u.sw*8*u0;if(Math.random()<D*1.2*cl&&sc.fx.length<220){sc.fx.push({ty:'sl',x:u.x+d*18*u0,y:u.y-24*u0,d,t:0,T:.28,c:Math.random()<.5?'#fff':'#fbbf24'});if(!sc.skip)zS('sword',.4+.6*cl)}}
+   else if(u.k==='cavalry'){
+    // 측면으로 크게 우회 → 적 후미로 파고든 뒤 복귀
+    const c=Math.sin(Math.min(1,sc.p)*Math.PI),es=u.s==='A'?'B':'A',reach=sl[0]+sc.gap*W+(LY[es]?LY[es].dep:0)+10*u0,cv=Math.max(0,(c-.6)/.4);
+    tx+=d*reach*Math.pow(c,.8);ty+=(my-ty)*cv*cv*.85;u.back=sc.p>.52;
+    if(c>.15&&u.x!=null&&Math.random()<D*9&&sc.fx.length<230)sc.fx.push({ty:'du',x:u.x-(u.back?-1:1)*d*10*u0,y:u.y,t:0,T:.8,r:5*u0});
+   }
+   else if(u.k==='bow'&&Math.random()<D*1.3*cl&&sc.fx.length<220){const f=ev1===u.s||fireS===u.s;sc.fx.push({ty:'ar',x0:u.x,y0:u.y-26*u0,x1:fx+d*(W*.07+Math.random()*W*.12),y1:sc.y0+Math.random()*(sc.y1-sc.y0)-14*u0,t:0,T:.9,f});if(!sc.skip){zS('bow',.5+.5*cl);zS('thunk',.5,.85)}}
+  }
+  if(ret>0&&u.s===pl)tx+=((u.s==='A'?-W*.2:W*1.2)-tx)*ret;
+  let rate=sc.t<2.2?2.4:5;
+  if(sc.ro){rate=1.5;if(u.s===sc.ro)tx=sc.ro==='A'?-W*.2:W*1.2;else tx+=(sc.ro==='A'?-1:1)*W*.3}
+  if(ret>0&&u.s===pl)rate=3;
+  if(u.x==null){u.x=d>0?-50*u0-Math.random()*W*.3:W+50*u0+Math.random()*W*.3;u.y=ty;u.mv=1}else{const r=Math.min(1,D*rate);u.mv=Math.abs(tx-u.x)>2||Math.abs(ty-u.y)>2?1:0;u.x+=(tx-u.x)*r;u.y+=(ty-u.y)*r}
+  if(!u.al&&u.fl<1){u.fl+=D*1.6;if(u.fl>=1){u.fl=1;sc.corp.push({x:u.x,y:u.y,s:u.s,r:(Math.random()-.5)*.6})}}
+ }));
+ if(tac==='fire'&&a&&b.ri===2&&sc.p<.9){const tgt=b.st.fire>0?(b.st.tacSide==='A'?'B':'A'):b.st.tacSide,dd=tgt==='A'?-1:1;for(let i=0;i<D*70;i++)if(sc.fx.length<260)sc.fx.push({ty:'fl',x:fx+dd*(W*.05+Math.random()*W*.26),y:sc.y0+Math.random()*(sc.y1-sc.y0),t:0,T:.7+Math.random()*.5,r:(8+Math.random()*10)*u0})}
+ if(cl>.2&&Math.random()<D*9*cl&&sc.fx.length<220)sc.fx.push({ty:'du',x:fx+(Math.random()-.5)*50*u0,y:sc.y0+Math.random()*(sc.y1-sc.y0),t:0,T:.8,r:6*u0});
+ sc.fx=sc.fx.filter(f=>(f.t+=D)<f.T);sc.txt=sc.txt.filter(f=>(f.t+=D)<f.T);
+}
+
+// ── 양쪽 진영(야영지): 배경에 1회 굽고, 깃발만 매 프레임 그림 ──
+function zCamps(c,sc){
+ const g=c.getContext('2d'),W=sc.W,H=sc.H,ub=Math.max(.5,Math.min(H/540,W/820)),yb=H*.6,pr=W>=900?W-312:W,m=Math.max(70*ub,W*.07);
+ g.save();g.setTransform(sc.d,0,0,sc.d,0,0);
+ [[m,sc.cA,1],[pr-m,sc.cB,-1]].forEach(([x,col,d])=>{
+  g.fillStyle='rgba(0,0,0,.28)';g.beginPath();g.ellipse(x,yb+8*ub,96*ub,10*ub,0,0,6.3);g.fill();
+  [[-50,-6,26],[0,-12,30],[48,-5,25]].forEach(([dx,dy,w])=>{
+   const tx=x+dx*ub,ty=yb+dy*ub,w2=w*ub;
+   g.fillStyle='#7a6a4f';g.beginPath();g.moveTo(tx-w2,ty);g.lineTo(tx,ty-w2*.95);g.lineTo(tx+w2,ty);g.fill();
+   g.fillStyle='rgba(0,0,0,.28)';g.beginPath();g.moveTo(tx,ty-w2*.95);g.lineTo(tx+w2,ty);g.lineTo(tx+w2*.2,ty);g.fill();
+   g.fillStyle=col;g.fillRect(tx-w2*.7,ty-w2*.26,w2*1.4,w2*.14);
+   g.fillStyle='rgba(0,0,0,.7)';g.beginPath();g.moveTo(tx-w2*.2,ty);g.lineTo(tx,ty-w2*.5);g.lineTo(tx+w2*.2,ty);g.fill();
+  });
+  g.fillStyle='#3a2a1a';g.fillRect(x-4*ub,yb-62*ub,8*ub,68*ub);g.fillRect(x-12*ub,yb-70*ub,24*ub,10*ub);
+  g.beginPath();g.moveTo(x-15*ub,yb-70*ub);g.lineTo(x,yb-84*ub);g.lineTo(x+15*ub,yb-70*ub);g.fill();
+  g.fillStyle='#5b4528';g.fillRect(x+d*64*ub,yb-8*ub,14*ub,12*ub);g.fillRect(x+d*80*ub,yb-4*ub,10*ub,8*ub);
+  g.fillStyle='#4a3520';
+  for(let i=0;i<24;i++){const x0=x-96*ub+i*8*ub;g.beginPath();g.moveTo(x0,yb+8*ub);g.lineTo(x0,yb-6*ub);g.lineTo(x0+3.5*ub,yb-13*ub);g.lineTo(x0+7*ub,yb-6*ub);g.lineTo(x0+7*ub,yb+8*ub);g.fill()}
+  g.fillStyle='#2e2114';g.fillRect(x-96*ub,yb-3*ub,192*ub,2.5*ub);
+  sc.fires.push([x+d*28*ub,yb+16*ub],[x-d*30*ub,yb+16*ub]);
+ });
+ g.restore();
+}
+function zFlags(sc){
+ const g=sc.g,W=sc.W,H=sc.H,ub=Math.max(.5,Math.min(H/540,W/820)),yb=H*.6,pr=W>=900?W-312:W,m=Math.max(70*ub,W*.07);
+ g.save();g.setTransform(sc.d,0,0,sc.d,0,0);
+ [[m,sc.cA,1],[pr-m,sc.cB,-1]].forEach(([px,col,d])=>{
+  const top=yb-122*ub;
+  g.strokeStyle='#2a1c10';g.lineWidth=2.5*ub;g.beginPath();g.moveTo(px,yb-84*ub);g.lineTo(px,top);g.stroke();
+  g.fillStyle=col;g.beginPath();g.moveTo(px,top);
+  for(let i=1;i<=6;i++)g.lineTo(px+d*i*6*ub,top+Math.sin(sc.t*6+i*.8+px)*3*ub+i*.8*ub);
+  for(let i=6;i>=1;i--)g.lineTo(px+d*i*6*ub,top+18*ub+Math.sin(sc.t*6+i*.8+px)*3*ub+i*.8*ub);
+  g.lineTo(px,top+18*ub);g.fill();
+ });
+ g.restore();
+}
+
+// ── 기존 함수에 덧씌우기 (한 번만 실행되도록 IIFE) ──
+(function(){
+ const oBG=bvBG,oDr=bvDraw,oU=bvU,oHit=bvHit,oIn=bvInit,oRs=bvResult;
+ bvBG=function(sc){const c=oBG(sc);try{zCamps(c,sc)}catch(e){}return c};
+ bvDraw=function(sc,b,dt){oDr(sc,b,dt);try{zFlags(sc)}catch(e){}};
+ bvU=function(g,sc,u,col){if(u.k==='cavalry'&&u.back){const s=u.s;u.s=s==='A'?'B':'A';try{oU(g,sc,u,col)}finally{u.s=s}}else oU(g,sc,u,col)};
+ bvHit=function(sc,b,r){oHit(sc,b,r);try{zHit(sc,b,r)}catch(e){}};
+ bvInit=function(b){oIn(b);try{zStart(b)}catch(e){}};
+ bvResult=function(b){oRs(b);try{zEnd(b)}catch(e){}};
+ document.addEventListener('pointerdown',function(){zac()});
+})();
+</script>
 </body>
 </html>
