@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>전란의 시대 : 천하삼분지계</title>
+<link rel="icon" href="data:,">
+<script>
+(function(){
+ var w=console.warn;
+ console.warn=function(){var m=String(arguments[0]||'');if(m.indexOf('cdn.tailwindcss.com should not be used in production')>-1)return;return w.apply(console,arguments)};
+ window.addEventListener('error',function(e){if(e&&e.target&&e.target!==window)return;e.preventDefault()});
+ window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
+})();
+</script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<style>
+@keyframes shk{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-5px) rotate(-6deg)}75%{transform:translateX(5px) rotate(6deg)}}.shake{animation:shk .35s infinite}@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.fadein{animation:fi .5s}
+:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:#0c0a09;color:#e7e5e4;font-family:'Noto Serif KR','Nanum Myeongjo',serif}
+select{background:#1c1917;border:1px solid #57534e;border-radius:4px;padding:6px;color:#e7e5e4}
+button:disabled{opacity:.4;cursor:not-allowed}
+</style>
+</head>
+<body>
+<div id="r"></div>
+<script>
+const K=['infantry','spear','bow','shield','cavalry'];
+const UN={infantry:{n:'보병',c:2,a:7,d:5},spear:{n:'창병',c:3,a:5,d:9},bow:{n:'궁병',c:4,a:13,d:3},shield:{n:'방패병',c:5,a:3,d:17},cavalry:{n:'기마병',c:6,a:18,d:6}};
+const CO={
+ '북풍국':{adv:'묵요',gen:'강철',cl:'text-blue-400',bd:'border-blue-500/40',hx:'#3b82f6',pos:[15,25],ps:'기마병 공/방 +20%',desc:'북방의 차가운 대지를 호령하는 기마의 나라.',i:{gold:15000,food:6000,min:60,land:100000,t:{infantry:2000,spear:1000,bow:1000,cavalry:2000,shield:0}}},
+ '서라국':{adv:'은수',gen:'무영',cl:'text-yellow-400',bd:'border-yellow-500/40',hx:'#f59e0b',pos:[78,14],ps:'금화·군량 수입 1.25배, 궁병 공/방 +20%, 전체 방어력 -5%',desc:'풍요로운 평야를 품은 황금의 나라.',i:{gold:22000,food:6000,min:70,land:100000,t:{infantry:1500,spear:500,bow:2000,cavalry:1000,shield:500}}},
+ '남월국':{adv:'진유',gen:'청호',cl:'text-green-400',bd:'border-green-500/40',hx:'#22c55e',pos:[82,86],ps:'창병/방패병 방어력 +20%',desc:'험준한 산맥을 깎아 만든 철벽의 나라.',i:{gold:20000,food:7000,min:80,land:100000,t:{infantry:1000,spear:2000,bow:0,cavalry:0,shield:2600}}}
+};
+const SH={
+ '중원 황금상단':{pos:[45,50],desc:'턴당 금화 +2,500\n외교 실패 패널티 50% 감소',t:{infantry:1000,spear:0,bow:1000,shield:0,cavalry:1000}},
+ '서라 대곡창':{pos:[65,32],desc:'턴당 군량 +2,000\n출진 군량 10% 감소',t:{infantry:1200,spear:800,bow:0,shield:0,cavalry:0}},
+ '북방 한철 광산':{pos:[25,70],desc:'징집 비용 10% 감소\n창/방패병 방어력 +10%',t:{infantry:0,spear:1000,bow:0,shield:1200,cavalry:0}},
+ '동부 용병 주둔지':{pos:[55,82],desc:'턴당 병력 +400 합류\n보병/기마병 공격력 +10%',t:{infantry:0,spear:1200,bow:0,shield:0,cavalry:1200}},
+ '남월 천연 요새':{pos:[80,60],desc:'국가 방어력 +10%\n이곳 수성 시 추가 방어 보너스',t:{infantry:0,spear:0,bow:1800,shield:1700,cavalry:0}}
+};
+const LS={n:'border-neutral-600 text-neutral-300',c:'border-red-600 text-red-200',d:'border-purple-500 text-purple-200',sys:'border-yellow-500 text-yellow-200'};
+const $=id=>document.getElementById(id);
+const z=()=>({infantry:0,spear:0,bow:0,shield:0,cavalry:0});
+const tot=t=>K.reduce((s,k)=>s+(+t[k]||0),0);
+const fmt=n=>Math.floor(n).toLocaleString();
+const part=(t,f)=>{const o={};K.forEach(k=>o[k]=Math.floor(t[k]*f));return o};
+const tl=t=>K.filter(k=>t[k]>0).map(k=>UN[k].n+' '+fmt(t[k])).join(' · ')||'없음';
+let S=null;
+const own=(c,sh)=>{sh=sh||S.sh;return Object.keys(sh).filter(k=>sh[k].owner===c)};
+const log=(title,desc,ty='n',who='')=>S.logs.unshift({t:S.turn,title,desc,ty,who:who||S.pc});
+const lossOf=(a,b)=>{const o=z();K.forEach(k=>o[k]=Math.max(0,a[k]-b[k]));return o};
+const alive=()=>Object.keys(S.nd).filter(n=>S.nd[n].alive);
+const clone=()=>({...S.pd,t:{...S.pd.t}});
+const M=m=>{S.m=m;R()};
+const hasSh=h=>own(S.pc).includes(h);
+
+// 전투력: 병종 능력치 x 병력 합산 후 /100 (숫자를 작게 표시)
+function calc(c,t,def,site){
+ let A=0,D=0;const o=c&&CO[c]?own(c):[];
+ const iron=o.includes('북방 한철 광산'),merc=o.includes('동부 용병 주둔지'),fort=o.includes('남월 천연 요새');
+ K.forEach(k=>{const n=t[k];if(n<=0)return;let a=UN[k].a,d=UN[k].d;
+  if(c==='북풍국'&&k==='cavalry'){a*=1.2;d*=1.2}
+  if(c==='서라국'&&k==='bow'){a*=1.2;d*=1.2}
+  if(c==='남월국'&&(k==='shield'||k==='spear'))d*=1.2;
+  if(c==='서라국')d*=.95;
+  if(iron&&(k==='spear'||k==='shield'))d*=1.1;
+  if(merc&&(k==='infantry'||k==='cavalry'))a*=1.1;
+  A+=a*n;D+=d*n});
+ if(fort)D*=1.1;
+ let cp=def?A*.8+D*1.2:A*1.2+D*.8;
+ if(def)cp*=site==='남월 천연 요새'?1.35:1.15;if(def&&c===S.pc&&!site&&S.inv)cp*=1+.05*S.inv.wall;
+ return cp/10;
+}
+// 상성: 창병>기마병, 방패병>궁병, 기마병>궁병(약간)
+const WK=[['spear','cavalry',1],['shield','bow',1],['cavalry','bow',.5],['bow','infantry',.6],['infantry','shield',.5],['infantry','spear',.4]];
+const cb=(m,e)=>{const a=tot(m)||1,b=tot(e)||1;return 1+WK.reduce((s,[x,y,w])=>s+w*(m[x]/a)*(e[y]/b),0)};
+const UPK=.06,luck=()=>.9+Math.random()*.2,mor=()=>.85+Math.min(100,S.pd.min)/100*.3;
+let DFK='normal',MUTE=false;const DF={easy:{n:'쉬움',ai:.8,inv:.7},normal:{n:'보통',ai:1,inv:1},hard:{n:'어려움',ai:1.3,inv:1.4}};
+function duel(pa,pb,ga,gb){const rs3=[],nt=[];['선봉전','본진전','추격전'].forEach(nm=>{let x=luck(),y=luck(),t='';
+ if(Math.random()<.08){x*=1.12;t=' ('+ga+' 활약!)'}else if(Math.random()<.08){y*=1.12;t=' ('+gb+' 활약!)'}
+ rs3.push(x/y);nt.push(nm+' '+(x/y).toFixed(2)+t)});return{r:pa/(pb||1)*rs3.reduce((a,b)=>a+b,0)/3,notes:nt.join(' / ')}}
+
+const UNN={infantry:'보병',spear:'창병',bow:'궁병',shield:'방패병',cavalry:'기병'};
+// 주력 병종에 따른 전술 ({g}=장수 이름)
+const TC={
+ cavalry:{st:'기병 측면 우회',key:'측면 기동으로 적 전열을 가른 판단',cmd:'정면은 보병과 창병으로 붙잡아 두고, 기병을 좌우로 돌려 적 측면과 후미를 타격한다.',ad:'적이 정면에만 신경 쓰는 사이 기병을 돌리십시오. 기동할 공간은 충분합니다.',
+  up:['정면에서 보병이 적을 묶어 두는 사이 기병대가 적 측면으로 돌아 들어가 전열이 한쪽부터 무너지기 시작한다.','기병대가 적 후미로 빠져 보급 수레를 덮치자 후위가 동요한다.','기병이 뚫은 틈으로 보병이 밀고 들어가 적 대열을 둘로 가른다.'],
+  dn:['{g}이(가) 측면 타격이 막히자 기병을 후방으로 빼 재집결시킨다.','기병이 속도를 잃자 {g}이(가) 돌격을 중단시키고 대열을 가다듬는다.'],lo:'{g}은(는) 기병을 수습해 후방으로 질서 있게 물러났다.'},
+ bow:{st:'고지 점령 후 일제 사격',key:'사거리를 지키며 이어 간 일제 사격',cmd:'높은 지형에 궁병 사선을 확보하고, 적이 사거리에 들어오면 일제 사격으로 대열을 흩뜨린다.',ad:'전방에 목책과 창병을 두어 사거리를 끝까지 지키십시오.',
+  up:['적이 사거리에 들어오자 궁병이 일제 사격을 퍼부어 선두 대열이 쓰러진다.','쏟아지는 화살에 적의 돌격이 속도를 잃고 멈춰 선다.','전열이 접근을 막는 사이 궁병이 쉬지 않고 사격을 이어 간다.'],
+  dn:['{g}이(가) 궁병을 한 단 뒤로 물려 사거리를 다시 확보한다.','화살이 떨어져 가자 {g}이(가) 예비 화살을 전열에 나누도록 지시한다.'],lo:'{g}은(는) 궁병을 이끌고 후퇴하며 후위를 남겨 추격을 늦췄다.'},
+ spear:{st:'창병 밀집 방어',key:'창병 밀집 대형으로 끝까지 지킨 전선',cmd:'창병을 여러 겹으로 세워 적의 돌격로를 막고, 측면은 보병으로 보강해 전선을 유지한다.',ad:'대열 사이를 벌리지 마십시오. 창끝이 일정하면 기병은 들어오지 못합니다.',
+  up:['창병이 창을 빽빽이 세워 돌격로를 틀어막자 적 선두가 멈춰 선다.','창병 대열이 한 걸음씩 전진하며 적을 불리한 지형으로 몰아간다.','공세가 둔해진 틈을 타 {g}이(가) 예비 병력을 투입해 역습에 나선다.'],
+  dn:['{g}이(가) 흐트러진 창병 대열을 한 열 뒤로 물려 다시 정렬한다.','창병 대열 한쪽이 밀리자 {g}이(가) 예비대를 보내 빈틈을 메운다.'],lo:'{g}은(는) 창병 대열을 접고 길목 뒤로 물러났다.'},
+ shield:{st:'방패 방진 방어',key:'지형을 살린 방패 방진과 때맞춘 예비대 투입',cmd:'방패병을 앞세운 방진으로 능선과 길목을 막아 적의 화살과 돌격을 받아내고, 지친 적에게 반격한다.',ad:'서두르지 말고 적이 먼저 지치게 하십시오.',
+  up:['방패병이 대형을 유지한 채 적의 돌격과 화살을 정면으로 받아낸다.','방패 틈으로 창이 나가 접근하는 적을 찌른다.','적 공세가 둔해진 틈에 {g}이(가) 예비 병력을 투입해 역습에 나선다.'],
+  dn:['{g}이(가) 흐트러진 전열을 안쪽으로 물려 방진을 다시 맞춘다.','전열이 밀리자 {g}이(가) 후방의 예비 방패병을 앞으로 보내 빈틈을 메운다.'],lo:'{g}은(는) 방진을 접고 성채 안쪽으로 물러나 길목을 걸어 잠갔다.'},
+ infantry:{st:'보병 정면 돌파',key:'보병 전열의 끈질긴 정면 압박',cmd:'보병을 중앙에 두텁게 배치해 정면에서 압박하고, 틈이 벌어지는 곳에 예비대를 투입한다.',ad:'전열을 교대시켜 병사들의 체력을 아끼십시오. 오래 버티는 쪽이 이깁니다.',
+  up:['보병 전열이 교대하며 끊임없이 압박해 적 대열이 조금씩 밀려난다.','보병이 대열의 틈으로 파고들어 백병전이 이어진다.','{g}이(가) 예비대를 한 곳에 몰아 투입해 적 전열의 한 곳을 뚫는다.'],
+  dn:['{g}이(가) 지친 전열을 교대시키며 대열을 가다듬는다.','{g}이(가) 흩어진 병사를 다잡아 방어선을 다시 세운다.'],lo:'{g}은(는) 패잔병을 수습해 질서 있게 물러났다.'}};
+// 병종 상성이 전장에서 어떻게 나타나는지 ({W}=유리한 쪽, {L}=불리한 쪽)
+const MU={'spear>cavalry':'{W}군 창병이 창을 빽빽이 세워 {L}군 기병의 돌격을 막아 내고, 속도를 잃은 기병이 쓰러진다.','shield>bow':'{L}군 화살 대부분이 {W}군 방패에 막혀 이렇다 할 피해를 주지 못한다.','cavalry>bow':'{W}군 기병이 {L}군 궁병 대열 안으로 파고들어, 근접전에서 궁병이 힘을 쓰지 못한다.','bow>infantry':'{W}군 궁병의 사격이 {L}군 보병에 집중되어 접근하기도 전에 병사들이 쓰러진다.','infantry>shield':'{W}군 보병이 {L}군 방패 대열에 백병전을 걸어 방패 사이를 파고든다.','infantry>spear':'{W}군 보병이 {L}군 창병 대열의 틈으로 파고들어 근접전으로 창의 이점을 지운다.'};
+const jo=(w,a,b)=>{const c=w.charCodeAt(w.length-1)-0xAC00;return c>=0&&c<11172&&c%28?a:b},fx=(f,x)=>f.replace(/\{g\}이\(가\)/g,x.g+jo(x.g,'이','가')).replace(/\{g\}은\(는\)/g,x.g+jo(x.g,'은','는')).replace(/\{g\}/g,x.g);
+const dmn=t=>K.reduce((b,k)=>t[k]>t[b]?k:b,K[0]),mkT=(tc,x)=>({...tc,up:tc.up.map(f=>fx(f,x)),dn:tc.dn.map(f=>fx(f,x)),lo:fx(tc.lo,x)});
+const cs=t=>{const n=tot(t)||1,l=K.filter(k=>t[k]/n>=.15).sort((a,b)=>t[b]-t[a]);return (l.length?l:[dmn(t)]).map(k=>UNN[k]+' '+Math.round(t[k]/n*100)+'%').join('·')};
+const IC2={infantry:'🗡️',spear:'🔱',bow:'🏹',shield:'🛡️',cavalry:'🐎'};
+const NM0={n:'갑',g:'가',s:'나'};
+// ── 전황 스토리: 나라별 사정(군량·민심·연승/연패·영토)과 전장 지형을 묘사에 반영
+const FLD={'중원 황금상단':'교역로가 사방에서 모이는 평원','서라 대곡창':'곡식 창고와 논밭이 이어진 평야','북방 한철 광산':'갱도와 채석장이 뒤엉킨 광산 능선','동부 용병 주둔지':'용병 막사가 들어선 구릉지','남월 천연 요새':'절벽과 좁은 협곡에 둘러싸인 천연 요새'};
+const SEAS=['이른 봄 아침, 채 녹지 않은 서리가 깔린 땅','한여름 한낮, 뙤약볕과 먼지가 자욱한 땅','늦가을 새벽, 짙은 안개가 낀 땅','한겨울, 살을 에는 눈바람이 몰아치는 땅'];
+const sit=(n,minus)=>{const d=n===S.pc?S.pd:S.nd[n];if(!d)return null;const up=Math.max(1,Math.floor(tot(d.t)*UPK));return{fd:Math.max(0,d.food-(minus||0))/up,min:d.min,land:d.land,rc:(S.rc||{})[n]||{s:0}}};
+const rec=(n,v)=>{if(!n||!CO[n]||!S)return;S.rc=S.rc||{};const c=S.rc[n]=S.rc[n]||{w:0,l:0,s:0};if(v>0){c.w++;c.s=c.s>0?c.s+1:1}else if(v<0){c.l++;c.s=c.s<0?c.s-1:-1}};
+const ratioTx=r=>r>1.5?'병력에서 크게 앞서 있다':r>1.15?'병력이 한 수 위다':r<.67?'병력에서 크게 밀리는 싸움이다':r<.87?'병력이 다소 모자란 싸움이다':'병력은 비등하다';
+const sline=(x,def,n)=>{if(!x)return def?n+'군은 오래 주둔해 지형을 손바닥처럼 꿰고 있다.':'';const c=[];
+ if(x.fd<2)c.push('곳간이 바닥나 군량이 '+Math.max(1,Math.round(x.fd))+'턴치밖에 남지 않았다. 장기전은 불가능하다.');else if(x.fd<5)c.push('군량이 넉넉지 않아 승부를 서둘러야 한다.');
+ if(x.min<40)c.push('민심이 흉흉해 후방에서는 탈영과 불평이 끊이지 않는다.');else if(x.min>=75)c.push('민심이 두터워 후방의 지원이 든든하다.');
+ if(x.rc.s<=-2)c.push((-x.rc.s)+'연패의 그늘이 병사들의 표정에 짙게 드리웠다.');else if(x.rc.s>=2)c.push(x.rc.s+'연승의 기세가 병사들 사이에 퍼져 있다.');
+ if(x.land<50000)c.push('영토가 크게 줄어 더는 물러설 곳이 없다.');else if(x.land>=150000)c.push('큰 영토를 거느린 강국의 체면이 걸려 있다.');
+ return c.slice(0,2).join(' ')};
+const crisis=(x,def,n)=>!x?'':x.fd<3?'배급이 줄어든 '+n+'군 병사들의 걸음이 눈에 띄게 무거워진다.':x.min<40?n+'군 대열에서 탈영병이 하나둘 빠져나간다.':(def&&x.min>=75)?'성 안 백성들이 화살과 물을 날라 와 '+n+'군이 버틸 힘이 되어 준다.':x.rc.s<=-2?'연패의 기억이 '+n+'군 병사들의 발목을 잡는다.':x.rc.s>=2?'연승의 기세를 탄 '+n+'군 병사들이 함성을 지르며 앞으로 나선다.':'';
+const MAX_RD=4;
+const BT_ORDERS=[
+ {id:'assault',icon:'⚔️',name:'총공세 지휘',desc:'남은 2합 아군 공격력 +20%, 방어력 -10% · 적 사기 -8',atk:1.2,def:.9,ms:4,mf:-8,log:'전군에 총공세를 명해 적 전열을 거세게 몰아붙인다!'},
+ {id:'regroup',icon:'🛡️',name:'진형 정비',desc:'남은 2합 아군 방어력 +25%, 공격력 -5% · 아군 사기 +15',atk:.95,def:1.25,ms:15,mf:0,log:'전열을 재정비하고 방패를 굳혀 병사들의 사기를 되살린다!'},
+ {id:'hold',icon:'📜',name:'현상 유지',desc:'기존 전술을 유지하며 장수의 판단에 맡긴다 (보정 없음)',atk:1,def:1,ms:0,mf:0,log:'기존 진형을 유지한 채 남은 교전을 이어 간다.'}
+];
+function initBtState(oA,A0,oB,B0,site,mA,mB,nA,nB){
+ const gx0=mkT(TC[dmn(A0)],nA||NM0),gy0=mkT(TC[dmn(B0)],nB||{g:'다'});
+ nA=nA||NM0;nB=nB||{n:'을',g:'다',s:'라'};nA={...nA,n:nA.n.replace(/군$/,'')};nB={...nB,n:nB.n.replace(/군$/,'')};
+ const A={...A0},B={...B0},ia=tot(A)||1,ib=tot(B)||1;
+ const sa=sit(nA.n,oA===S.pc?atkCost(tot(A0),oB&&CAP[oB]?oB:site):0),sb=sit(nB.n,0),fld=site?(FLD[site]||site):'성벽 앞 들판';
+ const pro='📜 제 '+S.turn+'턴, '+SEAS[(S.turn-1)%4]+'. '+nA.n+'군이 '+(site?site+jo(site,'을','를'):nB.n+'의 본성을')+' 노려 '+fld+'에 진을 쳤다. 병력은 '+nA.n+' '+fmt(ia)+'명 대 '+(CO[nB.n]?nB.n:nB.n+'군')+' '+fmt(ib)+'명으로, '+nA.n+'군은 '+ratioTx(ia/ib)+'.\n▸ '+nA.n+'(공격): '+(sline(sa,false,nA.n)||'큰 문제 없이 정비를 마치고 출정했다.')+'\n▸ '+(CO[nB.n]?nB.n:nB.n+'군')+'(수비): '+(sline(sb,true,nB.n)||'성과 보급선을 단단히 지키며 적을 기다린다.');
+ const lb=x=>(CH[x.g]?x.n+' 대장군 ':'')+x.g;
+ const intro=pro+'\n\n▸ '+lb(nA)+' ['+cs(A0)+'] — '+gx0.st+'\n  '+gx0.cmd+'\n▸ '+lb(nB)+' ['+cs(B0)+'] — '+gy0.st+'\n  '+gy0.cmd+(gx0.ad?'\n참모 '+nA.s+': “'+gx0.ad+'”':'')+(gy0.ad?'\n참모 '+nB.s+': “'+gy0.ad+'”':'');
+ return{oA,A0:{...A0},oB,B0:{...B0},A,B,ia,ib,ma:100,mb:100,site,mA,mB,nA,nB,gx0,gy0,sa,sb,rd:[],win:false,draw:false,end:'',lastMu:'',pl:0,stk:0,intro,epi:'',msgA:'',msgD:'',notes:'',modA:{atk:1,def:1},modB:{atk:1,def:1},tacticNote:''};
+}
+function stepBtRounds(st,rFrom,rTo,fv){
+ const {oA,oB,A,B,ia,ib,site,mA,mB,nA,nB,gx0,gy0,sa,sb}=st;
+ const OP=['양군 선두가 거리를 좁히며 교전이 시작된다.','양 날개가 움직이며 측면 기동이 시작되고 전선이 크게 흔들린다.','양측 모두 예비대를 투입하며 전선이 혼전으로 치닫는다.','해가 기울며 마지막 결전이 이어진다. 먼저 전열이 무너지는 쪽이 패한다.'];
+ for(let r=rFrom;r<=rTo;r++){
+  let ea=1,eb=1,da=0,db=0,xa=0,xb=0,tx=OP[r-1]||OP[OP.length-1];
+  if(r===rFrom&&st.tacticNote){tx='[전술 개입] '+st.tacticNote+' '+tx;st.tacticNote=''}
+  if(Math.random()<.5){const k=Math.random()*6|0,s=Math.random()<.5,X=s?nA:nB,Y=s?nB:nA,mo=(sd,v)=>{if(sd)da+=v;else db+=v};
+   if(k===0){tx+=' '+X.n+'군 별동대가 숲길로 우회해 측면을 급습했다!';if(s)ea=1.3;else eb=1.3}
+   else if(k===1){tx+=' '+X.n+'군이 마른 풀밭에 불화살을 쏘자 불길이 '+Y.n+' 진영으로 번지고 연기에 대열이 흐트러진다.';if(s)xb=.05;else xa=.05;mo(!s,-12)}
+   else if(k===2){const w=Math.random()<.5,aw=(s===w);tx+=' '+(w?Y.n:X.n)+'군 지휘부가 '+(w?X.n:Y.n)+'군의 집중 공격을 받아 전령이 끊기고 지휘 체계가 흔들린다. 사기가 꺾인다.';mo(true,aw?8:-22);mo(false,aw?-22:8)}
+   else if(k===3){tx+=' 폭우가 쏟아져 땅이 진창이 되고 활시위가 젖어 양군의 기동과 사격이 모두 둔해졌다.';ea=eb=.85}
+   else if(k===4){tx+=' '+X.s+'가 흘린 거짓 정보에 '+Y.n+'군 일부가 엉뚱한 방향으로 이동해 대열에 틈이 벌어졌다.';if(s)eb=.88;else ea=.88;mo(!s,-16)}
+   else{tx+=' '+X.n+'군의 증원 부대가 전장에 도착해 병사들의 사기가 오른다.';mo(s,14)}
+  }
+  {const na=tot(A)||1,nb=tot(B)||1;let bm=null,bs=.05;WK.forEach(([x,y,w])=>{[[A,B,nA,nB,na,nb],[B,A,nB,nA,nb,na]].forEach(([P,Q,W,L,np,nq])=>{const sc=w*P[x]/np*Q[y]/nq;if(sc>bs){bs=sc;bm=[x+'>'+y,W.n,L.n]}})});if(bm&&bm[0]+bm[1]!==st.lastMu){st.lastMu=bm[0]+bm[1];tx+=' '+MU[bm[0]].replace(/\{W\}/g,bm[1]).replace(/\{L\}/g,bm[2])}}
+  const a=calc(oA,A,false,null)*cb(A,B)*mA*ea*(st.modA?st.modA.atk:1)*(fv&&fv.s==='A'?fv.m:1)*(.66+Math.random()*.68),
+        b=calc(oB,B,true,site)*cb(B,A)*mB*eb*(st.modB?st.modB.def:1)*(fv&&fv.s==='B'?fv.m:1)*(.66+Math.random()*.68);
+  const fa=Math.min(.4,Math.max(.03,.12*Math.pow(b/(a||1),.8)))+xa,fb=Math.min(.4,Math.max(.03,.12*Math.pow(a/(b||1),.8)))+xb,la0=tot(A),lb0=tot(B);
+  K.forEach(k=>{A[k]-=Math.floor(A[k]*fa);B[k]-=Math.floor(B[k]*fb)});
+  st.ma+=da-fa*220;st.mb+=db-fb*220;
+  tx+=' '+(fb>fa*1.3?nA.n+'군이 우세를 점한다. '+gx0.up[r%gx0.up.length]+' '+gy0.dn[r%gy0.dn.length]:fa>fb*1.3?nB.n+'군이 우세를 점한다. '+gy0.up[r%gy0.up.length]+' '+gx0.dn[r%gx0.dn.length]:'양군이 대치한 채 일진일퇴를 거듭하며 전선은 크게 움직이지 않는다.');
+  if(r===2){const c=crisis(sa,false,nA.n);if(c)tx+=' '+c}if(r===3){const c=crisis(sb,true,nB.n);if(c)tx+=' '+c}
+  {const rA=tot(A)/ia,rB=tot(B)/ib,ld=Math.abs(rA-rB)<.04?0:rA>rB?1:-1;if(ld&&st.pl&&ld!==st.pl){tx+=' 전세가 뒤집힌다! '+(ld>0?nA.g+jo(nA.g,'이','가'):nB.g+jo(nB.g,'이','가'))+' 주도권을 되찾는다.';st.stk=0}else if(ld&&ld===st.pl){st.stk++;if(st.stk===2)tx+=' 승기가 한쪽으로 굳어 가는 듯하다.'}if(ld)st.pl=ld}
+  const ra=st.ma<=25||tot(A)<ia*.15,rb=st.mb<=25||tot(B)<ib*.15;
+  if(ra||rb){const aL=ra&&(!rb||st.ma<st.mb),L=aL?A:B,LN=aL?nA:nB,WN=aL?nB:nA;st.win=!aL;K.forEach(k=>{L[k]-=Math.floor(L[k]*.18)});
+   tx+=' '+LN.n+'군의 전열이 붕괴해 병사들이 무기를 버리고 달아나기 시작했고 '+WN.n+'군이 추격에 나섰다.';st.end=LN.n+'군 패주'}
+  st.rd.push({n:r,tx,a:tot(A),b:tot(B),ma:Math.max(0,st.ma),mb:Math.max(0,st.mb),la:la0-tot(A),lb:lb0-tot(B)});
+  if(st.end)break;
+ }
+ if(st.end||rTo>=MAX_RD){
+  if(!st.end){const saR=tot(A)/ia,sbR=tot(B)/ib;if(Math.abs(saR-sbR)<.08){st.draw=true;st.end='양군 모두 물러남'}else{st.win=saR>sbR;st.end=(st.win?nA.n:nB.n)+'군 판정승'}}
+  const fa=1-tot(A)/ia,fb=1-tot(B)/ib,wN=st.win?nA:nB,lN=st.win?nB:nA,gw=st.win?gx0:gy0,gl=st.win?gy0:gx0;
+  const aft=st.draw?'':st.win?(site?site+jo(site,'은','는')+' '+nA.n+'군의 손에 넘어갔다.':nB.n+'의 본성이 크게 흔들렸다.')+(sa&&sa.fd<3?' 다만 군량이 바닥나 승리의 대가가 만만치 않다.':'')+(sb&&sb.min<50?' 패전 소식에 '+nB.n+'의 민심이 크게 동요했다.':''):nB.n+'군이 '+(site||'본성')+jo(site||'본성','을','를')+' 지켜 냈다. 원정군은 군량만 허비한 채 돌아선다.'+(sa&&sa.fd<4?' 군량까지 바닥나 '+nA.n+'의 타격이 크다.':'');
+  st.epi=st.draw?nA.g+', '+nB.g+' 두 장수는 병력을 더 잃지 않기 위해 각자 군을 물렸다. 승부는 가려지지 않았다.':wN.n+'군이 전장을 장악했다. 승패를 가른 요인: '+gw.key+'. '+gl.lo+(aft?'\n'+aft:'');
+  st.msgA=st.draw?'무승부(혈전)':st.win?(fa<.25?'압승':'신승'):'참패';
+  st.msgD=st.draw?'무승부(혈전)':!st.win?(fb<.25?'대승':'성공'):'방어 실패';
+  st.notes=st.rd.map(x=>'제'+x.n+'합 [공격군 -'+fmt(x.la)+' / 수비군 -'+fmt(x.lb)+']').join(' · ');
+ }
+ return st;
+}
+function sim(oA,A0,oB,B0,site,mA,mB,nA,nB,fv){
+ const st=initBtState(oA,A0,oB,B0,site,mA,mB,nA,nB);
+ return stepBtRounds(st,1,MAX_RD,fv);
+}
+const WEXP=1.5;const pw0=(oA,A,oB,B,site,mA,mB)=>{const a=calc(oA,A,false,null)*cb(A,B)*mA,b=calc(oB,B,true,site)*cb(B,A)*mB;return Math.pow(a,WEXP)/((Math.pow(a,WEXP)+Math.pow(b,WEXP))||1)};
+function simP(oA,A0,oB,B0,site,mA,mB,nA,nB){const tw=Math.random()<pw0(oA,A0,oB,B0,site,mA,mB);let r;for(let i=0,m=1;i<16;i++,m*=1.18){r=sim(oA,A0,oB,B0,site,mA,mB,nA,nB,{s:tw?'A':'B',m});if(!r.draw&&r.win===tw){rec(oA,r.win?1:-1);rec(oB,r.win?-1:1);return r}}rec(oA,r.draw?0:r.win?1:-1);rec(oB,r.draw?0:r.win?-1:1);return r}
+const winP=(oA,A,oB,B,site,mA,mB)=>Math.round(pw0(oA,A,oB,B,site,mA,mB)*100);
+const AF=.9,atkCost=(n,T)=>{const f=CAP[S.pc],q=CAP[T]||SHP[T],d=f&&q?Math.hypot(f[0]-q[0],f[1]-q[1]):300;return Math.floor(n*(AF+d/1000)*(hasSh('서라 대곡창')?.9:1))};
+const mvp=(a,b)=>{S.mv=S.mv||[];S.mv.push({t:S.turn,a,b});if(S.mv.length>24)S.mv.shift()};
+const sumOf=(mn,fo,ex)=>'아군 전사 '+fmt(tot(mn))+'명 · 적군 전사 '+fmt(tot(fo))+'명'+(ex||'');
+function startBattle(cfg){
+ S.bq=S.bq||[];
+ const st=initBtState(cfg.oA,cfg.A0,cfg.oB,cfg.B0,cfg.site,cfg.mA,cfg.mB,cfg.nA,cfg.nB);
+ stepBtRounds(st,1,2,null);
+ const bt={...cfg,st,ri:0,phase:st.end?'done':'p1',msg:'',pw:false,sum:'',afterConfirm:null};
+ if(bt.phase==='done')commitBattle(bt);
+ S.bq.push(bt);
+}
+function interveneBt(orderId){
+ if(!S||!S.bq||!S.bq.length)return;
+ const bt=S.bq[0];if(bt.phase!=='choice')return;
+ const ord=BT_ORDERS.find(x=>x.id===orderId)||BT_ORDERS[2];
+ const st=bt.st,isAtk=bt.playerSide==='A';
+ if(isAtk){st.modA={atk:ord.atk,def:ord.def};st.ma=Math.max(10,Math.min(100,st.ma+ord.ms));st.mb=Math.max(0,st.mb+ord.mf)}
+ else{st.modB={atk:ord.atk,def:ord.def};st.mb=Math.max(10,Math.min(100,st.mb+ord.ms));st.ma=Math.max(0,st.ma+ord.mf)}
+ st.tacticNote=ord.log;
+ stepBtRounds(st,3,MAX_RD,null);
+ bt.phase='done';
+ commitBattle(bt);
+ R();
+}
+function commitBattle(bt){
+ const st=bt.st,c=bt.ctx;
+ rec(st.oA,st.draw?0:st.win?1:-1);rec(st.oB,st.draw?0:st.win?-1:1);
+ if(bt.mode==='sortie'){
+  const {p,T,isN,sh,ow,before,sent,cost,pc,nc}=c,R2={win:st.win,msg:st.msgA},mine=lossOf(sent,st.A),nt=isN?S.nd[T].t:sh.t;let ex='';
+  K.forEach(k=>{p.t[k]=Math.max(0,p.t[k]-mine[k]);nt[k]=st.B[k]});
+  const foe=lossOf(before,nt);S.st.bw+=R2.win?1:0;S.st.bl+=R2.win?0:1;S.st.kl+=tot(foe);S.st.ls+=tot(mine);mvp(S.pc,T);
+  if(R2.win){
+   if(isN){
+    const e=S.nd[T],g=Math.min(R2.msg==='압승'?30000:20000,e.land);p.land+=g;e.land-=g;S.ten[T]+=50;ex='\n- 적 영토 '+fmt(g)+'km² 탈취 (적 남은 영토 '+fmt(e.land)+')';
+    if(e.land<=0){conquer(T,p);ex+='\n- 🚩 '+T+' 영토 소멸, 멸망!'}
+   }else{
+    const prev=sh.owner;sh.owner=S.pc;sh.t=z();
+    if(prev){const g=Math.min(R2.msg==='압승'?15000:10000,S.nd[prev].land);p.land+=g;S.nd[prev].land-=g;S.ten[prev]+=60;ex='\n- 적 영토 '+fmt(g)+'km² 탈취';if(S.nd[prev].land<=0){conquer(prev,p);ex+='\n- 🚩 '+prev+' 영토 소멸, 멸망!'}}
+    ex+='\n- 🚩 거점 점령 성공!';
+   }
+  }else if(ow)S.ten[ow]+=30;
+  log('정벌 출진 → '+(isN?T+' 본성':T+(ow?' (소유 '+ow+')':' (중립)')),'결과: ['+R2.msg+'] 아군 공격력 '+fmt(pc)+' vs 적 방어력 '+fmt(nc)+' · '+st.rd.length+'합 접전 ('+st.end+')\n- 교전: '+st.notes+'\n- 출진 병력: '+tl(sent)+' (군량 -'+fmt(cost)+')\n- 아군 전사: '+fmt(tot(mine))+'명 ['+tl(mine)+']\n- 적군 전사: '+fmt(tot(foe))+'명 ['+tl(foe)+'] (전투 전 '+fmt(tot(before))+'명)'+ex,'c');
+  S.pd=p;bt.msg=R2.msg;bt.pw=R2.win;bt.sum=sumOf(mine,foe,ex);
+  bt.afterConfirm=()=>{
+   if(R2.win&&!isN&&sh.owner===S.pc){S.hold=true;S.gs=T;S.tab='gar';log('수비병 배치 필요','['+T+']은(는) 비어 있습니다. 수비병력을 배치하고 [배치 완료]를 누르세요.','sys');R()}
+   else endTurn(S.pd);
+  };
+ }else if(bt.mode==='raid'){
+  const {n,hh,send,gb,b0,a,d}=c,e=S.nd[n],s=S.sh[hh],R2={win:st.win,msg:st.msgA},l1=lossOf(send,st.A),l2=lossOf(b0,st.B);let ex='';
+  K.forEach(k=>{e.t[k]=Math.max(0,e.t[k]-l1[k]);s.t[k]=st.B[k]});
+  if(R2.win){s.owner=n;const gv=part(e.t,.25);K.forEach(k=>e.t[k]-=gv[k]);s.t=gv;const g=Math.min(8000,S.pd.land);S.pd.land-=g;e.land+=g;ex='\n- 🚩 ['+hh+']을(를) 빼앗겼습니다! 영토 '+fmt(g)+'km² 상실'}
+  mvp(n,hh);log('거점 침공: '+hh,n+'이(가) ['+hh+']을(를) 공격했습니다. 결과: '+(R2.win?'아국 패배':'수성 성공')+' (적 공격력 '+fmt(a)+' vs 내 수비 '+fmt(d)+')\n- 수비병: '+gb+'\n- 아군 수비병 전사: '+fmt(tot(l2))+'명 ['+tl(l2)+']\n- 적군 전사: '+fmt(tot(l1))+'명 ['+tl(l1)+']'+ex,'c',n);
+  bt.msg=R2.msg?'거점 함락':'수성 성공';bt.pw=!R2.win;bt.sum=sumOf(l2,l1,ex);
+  bt.afterConfirm=()=>nextStep();
+ }else if(bt.mode==='defend'){
+  const {p,evFrom,evTroops,used,cost,ac,dc}=c,R2={win:!st.win&&!st.draw,msg:st.msgD},mine=lossOf(used,st.B),foe=lossOf(evTroops,st.A),en=S.nd[evFrom];
+  K.forEach(k=>{p.t[k]=Math.max(0,p.t[k]-mine[k]);en.t[k]=Math.max(0,en.t[k]-foe[k])});
+  const fail=R2.msg==='방어 실패',g=fail?Math.min(10000,p.land):0;S.st[fail?'bl':'bw']++;S.st.kl+=tot(foe);S.st.ls+=tot(mine);p.land-=g;en.land+=g;
+  log('수성전: '+evFrom+'의 침공','결과: [수성 '+R2.msg+'] 내 방어력 '+fmt(dc)+' vs 적 공격력 '+fmt(ac)+' · '+st.rd.length+'합 접전 ('+st.end+')\n- 교전: '+st.notes+'\n- 방어 투입: '+tl(used)+' (군량 -'+fmt(cost)+')\n- 아군 전사: '+fmt(tot(mine))+'명 ['+tl(mine)+']\n- 적군 전사: '+fmt(tot(foe))+'명 ['+tl(foe)+'] (침공군 '+fmt(tot(evTroops))+'명)'+(fail?'\n- 영토 '+fmt(g)+'km² 피탈':''),'c');
+  S.ten[evFrom]=Math.max(0,S.ten[evFrom]-30);S.pd=p;
+  bt.msg=R2.msg;bt.pw=R2.win;bt.sum=sumOf(mine,foe,fail?'\n영토 '+fmt(g)+'km² 피탈':'');
+  bt.afterConfirm=()=>{if(S.pd.land<=0)return over(0,'영토를 모두 잃어 나라가 멸망했습니다.');S.m='';nextStep()};
+ }
+}
+function confirmBt(){
+ if(!S||!S.bq||!S.bq.length)return;
+ const bt=S.bq.shift();
+ if(bt.afterConfirm)bt.afterConfirm();else R();
+}
+let BTT=null;
+function autoBt(){
+ if(BTT||!S||!S.bq||!S.bq.length)return;
+ const b=S.bq[0],st=b.st;
+ if(b.phase==='choice')return;
+ if(b.ri>=st.rd.length){
+  if(b.phase==='p1'){b.phase='choice';R()}
+  return;
+ }
+ BTT=setTimeout(()=>{
+  BTT=null;if(!S||!S.bq||!S.bq.length)return;
+  const b=S.bq[0],st=b.st;
+  if(b.ri<st.rd.length){
+   b.ri++;
+   if(b.ri>=st.rd.length&&b.phase==='p1'){b.phase='choice';sfx([[440,.12],[554,.15]]);R();return}
+   sfx(b.ri>=st.rd.length&&b.phase==='done'?(b.pw?WIN:LOSE):[[200,.12],[140,.14]]);
+   R();
+  }
+ },b.ri===0?800:1500);
+}
+function btHTML(){
+ const b=S.bq[0],st=b.st,r=st.rd.slice(0,b.ri),cur=r.length?r[r.length-1]:{a:st.ia,b:st.ib,ma:100,mb:100};
+ const fin=b.phase==='done'&&b.ri>=st.rd.length,choosing=b.phase==='choice';
+ const pa=Math.max(0,cur.a/st.ia),pb=Math.max(0,cur.b/st.ib);
+ const row=(t0,pc)=>K.map(k=>IC2[k].repeat(Math.ceil((t0[k]/(tot(t0)||1))*14*pc))).join('');
+ const sd=(m,t0,pc,mo,v,left)=>{const col=CO[m.n]?CO[m.n].hx:'#a8a29e';return `<div class="flex-1 min-w-0 ${left?'':'text-right'}"><div class="font-black truncate" style="color:${col}">${m.n}${m.n===S.pc?' (아군)':''}</div><div class="text-xs text-stone-400">${CH[m.g]?CH[m.g].i+' ':''}${m.g}</div><div class="text-xl font-black">${fmt(v)}명</div><div class="h-2 bg-stone-800 rounded mt-1"><div class="h-2 rounded" style="width:${pc*100}%;background:${col}"></div></div><div class="text-[10px] text-stone-500 mt-1">사기</div><div class="h-1.5 bg-stone-800 rounded"><div class="h-1.5 rounded bg-yellow-500" style="width:${Math.max(0,Math.min(100,mo))}%"></div></div><div class="mt-2 text-lg leading-6 break-all">${row(t0,pc)}</div></div>`};
+ const midChoice=`<div class="mt-3 p-3 rounded-xl bg-amber-950/50 border-2 border-amber-500/80 fadein"><div class="text-center font-black text-amber-300 text-base mb-1">⚡ 제2합 종료 — 전술 개입 지휘 (남은 2합)</div><p class="text-xs text-stone-300 text-center mb-2">전황을 살피고 남은 3~4합의 작전을 지시하십시오.</p><div class="grid sm:grid-cols-3 gap-2">${BT_ORDERS.map(o=>`<button onclick="interveneBt('${o.id}')" class="text-left p-2.5 rounded-lg bg-stone-900 hover:bg-amber-900/60 border border-amber-700/70 transition"><div class="font-bold text-amber-300 text-sm">${o.icon} ${o.name}</div><div class="text-[11px] text-stone-300 mt-1 leading-snug">${o.desc}</div></button>`).join('')}</div></div>`;
+ return `<div class="fixed inset-0 bg-black/90 z-[70] flex items-center justify-center p-3 overflow-y-auto"><div class="bg-stone-900 border-2 border-red-800 rounded-2xl p-4 w-full max-w-2xl my-auto"><div class="flex justify-between items-center mb-2"><span class="text-xs text-stone-400">총 ${MAX_RD}합 전투 · 2합 후 전술 개입</span><h2 class="text-center font-black text-xl text-red-400">⚔ ${b.title}</h2><span class="text-xs text-amber-400 font-bold">${Math.min(b.ri,MAX_RD)} / ${MAX_RD}합</span></div><div class="rounded-xl p-3 border border-red-900/60" style="background:linear-gradient(#3b2f1f,#1c1208)"><div class="flex gap-3 items-start">${sd(b.nA,b.A0,pa,cur.ma,cur.a,1)}<div class="self-center text-3xl ${fin||choosing?'':'shake'}">⚔️</div>${sd(b.nB,b.B0,pb,cur.mb,cur.b,0)}</div></div><div id="btl" class="max-h-64 overflow-y-auto mt-3 space-y-2">${st.intro?'<div class="text-sm text-stone-300 border-l-2 border-stone-500 pl-2 whitespace-pre-line">'+st.intro+'</div>':''}${r.map(x=>`<div class="fadein border-l-2 border-amber-700 pl-2 text-sm"><b class="text-amber-400">제 ${x.n}합</b> ${x.tx}<div class="text-xs text-stone-400">${b.nA.n} -${fmt(x.la)} · ${b.nB.n} -${fmt(x.lb)}</div></div>`).join('')||(st.intro?'':'<p class="text-stone-500 text-sm text-center">양군이 진을 치고 마주 섰다…</p>')}</div>${choosing?midChoice:fin?`<div class="text-center mt-3"><div class="text-4xl font-black ${b.pw?'text-amber-400':'text-red-500'}">${b.msg}</div>${st.epi?'<div class="text-sm text-amber-200 mt-2 px-2">'+st.epi+'</div>':''}<div class="text-sm text-stone-300 whitespace-pre-line mt-1">${st.end?'('+st.end+')\n':''}${b.sum}</div><button onclick="confirmBt()" class="mt-3 px-8 py-2 bg-amber-700 hover:bg-amber-600 rounded font-bold">전황 확인</button></div>`:`<div class="text-center mt-3"><button onclick="const b=S.bq[0];b.ri=b.st.rd.length;if(b.phase==='p1')b.phase='choice';R()" class="px-5 py-1.5 bg-stone-700 hover:bg-stone-600 rounded text-sm">⏩ ${b.phase==='p1'?'2합까지 바로 보기':'결과 바로 보기'}</button></div>`}</div></div>`;
+}
+const WAR=/침공|기습|출진|수성|점령|징집|용병|수비|군량|자원/,DIP=/조공|동맹|외교|책사|민심|내정|치국|개발|강화|하사|재해|반란|현황|안내|등극/;
+const rby=l=>WAR.test(l.title)?'g':DIP.test(l.title)?'a':l.ty==='c'?'g':'a';
+const rp=l=>{const n=rby(l)==='g'?CO[S.pc].gen:CO[S.pc].adv,c=CH[n];return c?c.i+' '+n+' '+c.r+'의 보고':''};
+function say(w,wp){const n=w==='g'?CO[S.pc].gen:CO[S.pc].adv,c=CH[n],p=S.pd,upk=Math.floor((tot(p.t)+gar(S.pc)*.5)*UPK),fc=upk?Math.floor(p.food/upk):99;let t;
+ if(w==='a')t=fc<3?'폐하, 곳간이 바닥나고 있습니다. 농업 개발과 치국안민을 서두르소서.':p.min<=40?'민심이 흉흉합니다. 치국안민이나 민심 하사로 백성을 달래야 합니다.':p.gold>60000?'국고가 넘칩니다. 농업·상업·성벽 개발에 투자하심이 어떻겠습니까.':'나라가 평안합니다. 내정과 외교로 힘을 비축할 때입니다.';
+ else t=wp==null?'폐하, 공격할 목표와 병력을 고르시면 승산을 아뢰겠습니다.':wp>=70?'승산이 높습니다! 출진 명령만 내리소서.':wp>=40?'백중세입니다. 병력을 더 모아 치면 안전합니다.':'위험합니다. 이대로 나서면 크게 패할 수 있습니다.';
+ return `<div class="flex gap-2 items-start bg-stone-950/70 border border-stone-700 rounded-lg p-2 mb-3 text-sm"><div class="text-2xl">${c.i}</div><div><b style="color:${CO[S.pc].hx}">${n}</b> <span class="text-xs text-stone-400">${c.r}</span><div>“${t}”</div></div></div>`}
+const DIS=[['가뭄','🌵','극심한 가뭄으로 논밭이 쩍쩍 갈라졌습니다.',p=>{const l=Math.floor(p.food*.18);p.food-=l;p.min=Math.max(1,p.min-4);return '군량 -'+fmt(l)+' · 민심 -4'}],
+['홍수','🌊','폭우로 강이 범람해 마을과 창고가 휩쓸렸습니다.',p=>{const l=Math.floor(p.gold*.12);p.gold-=l;p.min=Math.max(1,p.min-5);return '금화 -'+fmt(l)+' · 민심 -5'}],
+['지진','🌋','땅이 갈라지고 병영과 성벽이 무너졌습니다.',p=>{let n=0;K.forEach(k=>{const l=Math.floor(p.t[k]*.04);p.t[k]-=l;n+=l});return '병력 -'+fmt(n)+'명 (병영 붕괴)'}],
+['역병','☠️','마을마다 역병이 번져 군영까지 퍼졌습니다.',p=>{let n=0;K.forEach(k=>{const l=Math.floor(p.t[k]*.05);p.t[k]-=l;n+=l});p.min=Math.max(1,p.min-6);return '병력 -'+fmt(n)+'명 · 민심 -6'}],
+['메뚜기떼','🦗','하늘을 뒤덮은 메뚜기떼가 곡식을 갉아먹었습니다.',p=>{const l=Math.floor(p.food*.25);p.food-=l;return '군량 -'+fmt(l)}]];
+function rollDis(p){
+ if(S.turn<3)return;let d=null;
+ if(p.min<=45&&Math.random()<.1+(50-p.min)/100){
+  let fx='';const hs=own(S.pc);
+  if(hs.length&&Math.random()<.4){const h=hs[Math.random()*hs.length|0];S.sh[h].owner=null;K.forEach(k=>S.sh[h].t[k]=Math.floor(S.sh[h].t[k]*.5));fx='['+h+']의 수비병이 반란을 일으켜 거점을 잃었습니다!'}
+  else{let n=0;K.forEach(k=>{const l=Math.floor(p.t[k]*.08);p.t[k]-=l;n+=l});const g=Math.floor(p.gold*.1);p.gold-=g;p.min=Math.min(100,p.min+6);fx='병력 -'+fmt(n)+'명 · 금화 -'+fmt(g)+' · 진압 후 민심 +6'}
+  d={title:'반란 발생!',ic:'🔥',desc:'굶주리고 지친 백성이 관아를 습격했습니다. 성난 무리가 궁성 앞까지 밀려옵니다!',fx,rb:true,say:'굶주림과 불안이 쌓이면 반란은 반드시 일어납니다. 지금은 칼보다 민심을 돌보셔야 합니다.'}
+ }else if(Math.random()<.07){const x=DIS[Math.random()*DIS.length|0];d={title:'자연재해: '+x[0],ic:x[1],desc:x[2],fx:x[3](p),rb:false,say:'하늘의 일은 막을 수 없으나, 곳간을 열어 백성을 달래면 민심은 돌아옵니다.'}}
+ if(!d)return;S.ds=d;sfx(ALARM);log(d.title,d.desc+'\n- '+d.fx,'c');
+}
+const dsm=()=>{const d=S.ds,n=CO[S.pc].adv,c=CH[n];return `<div class="fixed inset-0 bg-black/90 flex items-center justify-center z-[55] p-3 overflow-y-auto"><div class="bg-stone-900 border-2 ${d.rb?'border-red-700':'border-amber-600'} p-5 rounded-2xl w-full max-w-lg my-auto"><h2 class="text-2xl font-bold text-center mb-1 ${d.rb?'text-red-500':'text-amber-400'}">긴급 전갈: ${d.title}</h2><div class="text-6xl text-center my-2">${d.ic}</div><p class="text-center text-stone-300 mb-3">${d.desc}</p><div class="bg-stone-950 p-3 rounded border border-stone-700 text-sm mb-3"><b class="text-amber-400">피해</b> ${d.fx}</div><div class="flex gap-2 items-start bg-stone-950 p-2 rounded text-sm mb-3"><div class="text-2xl">${c.i}</div><div><b>${n}</b> <span class="text-xs text-stone-400">책사</span><div>“${d.say}”</div></div></div><button onclick="S.ds=null;nextStep()" class="w-full py-3 bg-amber-700 hover:bg-amber-600 rounded font-black">대책을 마련한다</button></div></div>`};
+function toast(t){let d=document.getElementById('toast');if(!d){d=document.createElement('div');d.id='toast';d.className='fixed top-3 left-1/2 -translate-x-1/2 z-[90] bg-emerald-900 border border-emerald-500 text-emerald-100 px-4 py-2 rounded-lg shadow-lg text-sm';document.body.appendChild(d)}d.textContent=t;d.style.display='block';clearTimeout(window._tt);window._tt=setTimeout(()=>{d.style.display='none'},2600)}
+function warLayer(){
+ const pos=k=>CAP[k]||SHP[k];
+ let o=`<defs><linearGradient id="lit" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient></defs><rect width="800" height="520" fill="url(#lit)" pointer-events="none"/>`;
+ for(let i=1;i<10;i++)o+=`<line x1="${i*80}" y1="0" x2="${i*80}" y2="520" stroke="#fff" stroke-opacity=".05" pointer-events="none"/>`;
+ for(let j=1;j<7;j++)o+=`<line x1="0" y1="${j*74}" x2="800" y2="${j*74}" stroke="#fff" stroke-opacity=".05" pointer-events="none"/>`;
+ [[120,70,26,70],[300,90,30,95],[470,80,24,115]].forEach(([y,rx,ry,du],i)=>{o+=`<ellipse cx="-120" cy="${y}" rx="${rx}" ry="${ry}" fill="#fff" opacity=".1" pointer-events="none"><animate attributeName="cx" from="-150" to="950" dur="${du}s" begin="${-i*30}s" repeatCount="indefinite"/></ellipse>`});
+ for(let i=0;i<26;i++){const x=40+(i*37)%250,d=5+(i%5);o+=`<circle cx="${x}" cy="40" r="1.7" fill="#fff" opacity=".8" pointer-events="none"><animate attributeName="cy" from="30" to="230" dur="${d}s" begin="${-i*.4}s" repeatCount="indefinite"/><animate attributeName="cx" values="${x};${x+14};${x}" dur="${d}s" begin="${-i*.4}s" repeatCount="indefinite"/></circle>`}
+ Object.keys(CO).forEach(c=>{if(c!==S.pc&&!S.nd[c].alive)return;const [x,y]=CAP[c],col=CO[c].hx,d=c===S.pc?S.pd:S.nd[c],n=Math.min(7,Math.ceil(tot(d.t)/6000)),f1=`M${x+20},${y-44}Q${x+32},${y-50} ${x+44},${y-44}L${x+44},${y-30}Q${x+32},${y-36} ${x+20},${y-30}Z`,f2=`M${x+20},${y-44}Q${x+32},${y-38} ${x+44},${y-44}L${x+44},${y-30}Q${x+32},${y-24} ${x+20},${y-30}Z`;
+  o+=`<g pointer-events="none"><line x1="${x+20}" y1="${y-6}" x2="${x+20}" y2="${y-44}" stroke="#d6d3d1" stroke-width="2"/><path d="${f1}" fill="${col}" stroke="#000" stroke-width=".8"><animate attributeName="d" dur="1.4s" repeatCount="indefinite" values="${f1};${f2};${f1}"/></path>`;
+  for(let i=0;i<n;i++){const a=i*1.1+x*.01;o+=`<text x="${x+Math.cos(a)*(34+i*3)-6}" y="${y+Math.sin(a)*(20+i*2)+62}" font-size="11">⛺</text>`}
+  o+='</g>'});
+ (S.mv||[]).filter(m=>m.t>=S.turn-1).forEach((m,i)=>{const p=pos(m.a),q=pos(m.b);if(!p||!q)return;const col=CO[m.a]?CO[m.a].hx:'#fff',mx=(p[0]+q[0])/2+(q[1]-p[1])*.18,my=(p[1]+q[1])/2-(q[0]-p[0])*.18,d=`M${p[0]},${p[1]}Q${mx},${my} ${q[0]},${q[1]}`;
+  o+=`<path d="${d}" stroke="#000" stroke-width="6" fill="none" opacity=".35" pointer-events="none"/><path d="${d}" stroke="${col}" stroke-width="3.5" stroke-dasharray="9 7" fill="none" pointer-events="none"><animate attributeName="stroke-dashoffset" from="32" to="0" dur=".9s" repeatCount="indefinite"/></path><text font-size="18" pointer-events="none">🐎<animateMotion dur="3.2s" begin="${-i}s" repeatCount="indefinite" path="${d}"/></text>`;
+  o+=`<g pointer-events="none"><circle cx="${q[0]}" cy="${q[1]}" r="26" fill="#f97316" opacity=".25"><animate attributeName="r" values="18;34;18" dur="1.6s" repeatCount="indefinite"/></circle><text x="${q[0]-10}" y="${q[1]-12}" font-size="22">🔥</text>`+[0,1,2].map(j=>`<circle cx="${q[0]+j*7-7}" cy="${q[1]-20}" r="5" fill="#57534e" opacity=".5"><animate attributeName="cy" from="${q[1]-20}" to="${q[1]-70}" dur="${2+j*.6}s" repeatCount="indefinite"/><animate attributeName="opacity" from=".55" to="0" dur="${2+j*.6}s" repeatCount="indefinite"/></circle>`).join('')+'</g>'});
+ return o;
+}
+function sfx(a){if(MUTE)return;try{const c=new(window.AudioContext||window.webkitAudioContext)(),t=c.currentTime;a.forEach(([f,d],i)=>{const o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(.12,t+i*.15);g.gain.exponentialRampToValueAtTime(.001,t+i*.15+d);o.connect(g);g.connect(c.destination);o.start(t+i*.15);o.stop(t+i*.15+d)})}catch(e){}}
+const WIN=[[523,.25],[659,.25],[784,.4]],LOSE=[[330,.3],[247,.3],[196,.5]],ALARM=[[880,.15],[660,.15],[880,.15],[660,.15]];
+const hasSave=()=>{try{return !!localStorage.getItem('jeonran')}catch(e){return false}};
+function saveG(m){try{localStorage.setItem('jeonran',JSON.stringify({...S,un:null,bq:[],trp:null}));localStorage.setItem('jeonran_meta',JSON.stringify({turn:S.turn,pc:S.pc}));if(m){toast('💾 제 '+S.turn+'턴 상태를 저장했습니다. 시작 화면의 [이어하기]로 불러옵니다. (이전 저장본은 덮어씀)');R()}}catch(e){if(m)toast('저장에 실패했습니다.')}}
+function askDel(){if(confirm('저장 취소: 저장해 둔 기록을 삭제할까요?\n(지금 진행 중인 게임은 그대로 유지됩니다)'))delSave()}
+function delSave(){try{localStorage.removeItem('jeonran');localStorage.removeItem('jeonran_meta')}catch(e){}toast('🗑 저장 기록을 삭제했습니다. (진행 중인 게임은 그대로입니다)');R()}
+const saveMeta=()=>{try{return JSON.parse(localStorage.getItem('jeonran_meta'))}catch(e){return null}};
+function loadG(){try{S=JSON.parse(localStorage.getItem('jeonran'));S.cfg=false;S.trp=null;DFK=S.df||'normal';R()}catch(e){S=null;R()}}
+function snap(){try{S.un=null;S.un=JSON.stringify(S)}catch(e){}}
+function undo(){if(!S.un)return;S=JSON.parse(S.un);S.m='';R()}
+const IV={farm:['농업 개발','군량 +700/턴'],com:['상업 개발','금화 +800/턴'],wall:['성벽 강화','본성 방어력 +5%']};
+const ivCost=k=>6000*(S.inv[k]+1);
+function invest(k){if(S.hold)return M(HM);if(S.inv[k]>=5)return M('최대 단계입니다.');const p=clone(),c=ivCost(k);if(p.gold<c)return M('국고가 부족합니다!');snap();p.gold-=c;S.inv[k]++;log(IV[k][0],IV[k][0]+' '+S.inv[k]+'단계 달성 ('+IV[k][1]+', 금화 -'+fmt(c)+')');endTurn(p)}
+function bless(){if(S.hold)return M(HM);const p=clone();if(p.gold<5000)return M('국고가 부족합니다!');if(p.min>=100)return M('민심이 이미 최고입니다.');snap();p.gold-=5000;p.min=Math.min(100,p.min+10);log('민심 하사','금화 5,000을 풀어 민심 +10');endTurn(p)}
+
+const CH={강철:{c:'북풍국',r:'대장군',i:'🐺'},묵요:{c:'북풍국',r:'책사',i:'🪶'},무영:{c:'서라국',r:'대장군',i:'🏹'},은수:{c:'서라국',r:'책사',i:'🪭'},청호:{c:'남월국',r:'대장군',i:'⛰️'},진유:{c:'남월국',r:'책사',i:'📜'}};
+const ST_HIS=[
+['','일천 년을 이어 온 대환(大桓) 제국. 북방의 설원에서 남쪽 끝 산맥까지, 이 땅의 모든 길은 황도로 통했다. 제국의 곳간은 서쪽 대평원이 채웠고, 제국의 칼날은 북방의 철과 기마가 벼렸으며, 제국의 방패는 남쪽 산성이 맡았다. 세 지방이 서로를 필요로 하는 한 제국은 무너지지 않을 것이라, 모두가 믿었다.','서장 · 대환 제국'],
+['','그러나 환제(桓帝) 말년, 황제는 후사를 정하지 못한 채 병석에 누웠다. 황자는 없었고, 곁에는 세 명의 충신만이 남았다. 북방의 병권을 쥔 대도독, 서방의 재정을 쥔 총독, 남방의 성채를 쥔 산군(山君). 황제는 이들이 서로를 견제하며 제국을 지켜 주길 바랐다.'],
+['','붕어하던 밤, 환제는 세 사람을 침상 앞으로 불러 옥새를 내렸다. 옥새는 세 조각으로 쪼개져 있었다. “하나의 옥새를 셋이 나누어 지켜라. 세 조각이 다시 하나로 합쳐지는 날, 그가 천하의 주인이 되리라.” 훗날 삼분유조(三分遺詔)라 불리는 마지막 칙령이었다.','제1장 · 삼분유조'],
+['','황제는 셋이 손을 잡기를 바랐다. 하지만 옥새를 셋으로 가른 조서는 세 사람 모두에게 같은 질문을 남겼다. “나머지 둘을 꺾으면, 내가 황제가 되는가?” 장례가 끝나기도 전에 세 사람의 눈빛은 서로를 향한 칼날이 되어 있었다.'],
+['','북방 대도독은 설원에서 군을 일으켜 스스로를 북풍국이라 칭했다. 서방 총독은 대평원의 곡창과 금고를 열어 서라국을 세웠다. 남방 산군은 험준한 산맥 위의 요새를 닫아걸고 남월국을 선포했다. 천 년 제국은 단 한 해 만에 셋으로 갈라졌다.','제2장 · 제국의 분열'],
+['','곧 첫 전쟁이 터졌다. 북풍국은 겨울이 길어 곡식이 모자랐고, 서라국은 곡식이 넘쳐도 철과 말이 없었으며, 남월국은 산이 튼튼해도 길이 막혀 물자가 들어오지 않았다. 세 나라는 서로 가진 것이 달랐기에 서로 없이는 살 수 없었고, 서로를 빼앗지 않고는 이길 수 없었다.'],
+['','이십 년 동안 수십 번의 전투가 벌어졌지만 어느 쪽도 결정적인 승리를 거두지 못했다. 한 나라가 우세해지면 나머지 둘이 손을 잡았고, 그 동맹은 이듬해 어김없이 깨졌다. 옥새의 세 조각은 각자의 궁성 깊은 곳에서 해마다 무거워졌다.'],
+['','그 혼란 속에서 대륙 한가운데의 황금상단만이 번성했다. 상단은 세 나라 모두에게 곡식과 철을 팔았고, 세 나라 모두에게 빚을 지게 했다. 사람들은 속삭였다. 전쟁이 길어질수록 가장 이득을 보는 자가 누구냐고.','제3장 · 황금상단']
+];
+const ST_PRO=[...ST_HIS,
+['','대환(大桓) 제국이 무너진 지 삼십 년. 황제의 옥좌는 비었고, 흩어진 제후들은 마침내 세 개의 깃발 아래 모였다. 북방의 북풍국, 서쪽 평야의 서라국, 남쪽 산맥의 남월국. 사람들은 이 위태로운 균형을 천하삼분(天下三分)이라 불렀다.','제4장 · 천하삼분의 시대'],
+['','그러나 균형은 평화가 아니었다. 세 나라는 모두 알고 있었다. 하나의 깃발만이 남을 때까지 이 땅의 전란은 끝나지 않는다는 것을.'],
+['','중원 한복판, 황금상단의 낡은 회의장. 삼국의 사절단이 삼 년 만에 한자리에 모였다. 상단주가 마련한 마지막 휴전 회담이었다.','제5장 · 중원 황금상단의 회담'],
+['강철','“나는 말 위에서 태어나 협상 탁자 앞에서는 늘 불편하더군. 짧게 하지. 북방 목초지의 통행권을 인정하라. 그러면 내 기병도 칼집에서 잠들 것이다.”'],
+['무영','“통행권이라. 북방의 겨울을 먹여 온 것이 누구의 곡식인지 잊으셨나 봅니다, 강철 장군. 서라는 싸움을 원치 않습니다. 다만 값을 치르지 않는 자에게 문을 열어 줄 생각도 없습니다.”'],
+['청호','“……둘 다 목소리가 큽니다. 남월의 산은 말이 없지요. 한 가지만 말하겠소. 닫힌 문 앞까지 쳐들어온 군대 가운데 돌아가는 길을 찾은 군대는 없었소.”'],
+['묵요','(강철의 등 뒤에서 낮게) “장군, 저쪽 책사들이 소매 속에서 눈짓을 주고받습니다. 오늘 회담은 어차피 갈라집니다. 칼을 먼저 뽑는 쪽이 아니라, 숫자를 먼저 세는 쪽이 이깁니다.”'],
+['은수','“숫자라면 서라도 세어 보았지요. 금화는 넘칩니다. 하지만 곳간의 곡식과 백성의 마음은 금화로 사 오기가 가장 어렵더군요. ……묵요 책사, 귓속말은 조금만 더 작게 하셔야 들립니다.”'],
+['진유','“이 자리에서 가장 위험한 말은 아직 아무도 꺼내지 않았습니다. 삼분(三分)이란 셋으로 나뉘었다는 뜻이 아니라, 셋이 서로를 삼킬 준비를 마쳤다는 뜻이지요.”'],
+['','그때 회의장 문이 부서지듯 열리고, 변경의 파발이 피 묻은 서신을 쥔 채 쓰러졌다. “국경 거점 한 곳이 불타고 있습니다! 누가 불을 질렀는지는…… 아무도 모릅니다!”'],
+['강철','“……누군가 판을 엎었군.”'],
+['무영','“우리는 아닙니다.”'],
+['청호','“우리도 아니오. 그리고 아무도 믿지 않겠지.”'],
+['','진유의 말대로였다. 회담은 그 자리에서 깨졌다. 세 사절단은 서로에게서 눈을 떼지 않은 채 물러났고, 그날 밤 세 나라의 국경에는 동시에 봉화가 올랐다.']
+];
+const ST_C={
+'북풍국':[
+['','눈보라가 몰아치는 북풍국의 궁성. 회담장에서 돌아온 두 사람이 통치자 앞에 무릎을 꿇었다.','제6장 · 북풍국 궁성'],
+['강철','“소신의 선조는 환제께서 북방을 맡기신 대도독이었습니다. 겨울마다 야만족의 말발굽을 막아 낸 대가가 이 굶주림이라면, 서라의 곡식을 빼앗는 것이 어찌 도둑질이겠습니까.”'],
+['묵요','“북풍의 옥새 조각은 한철 광산 아래 봉인되어 있습니다. 세 조각을 모두 쥐는 자가 천하를 얻는다는 유조…… 폐하, 그것은 축복이 아니라 저주입니다. 한 사람이 가질 때까지 아무도 멈출 수 없으니까요.”'],
+['강철','“폐하, 회담은 결렬되었습니다. 허나 소신은 오히려 반깁니다. 북풍의 기마는 오래 기다렸습니다. 명만 내리시면 눈이 녹기 전에 서라의 평야에 말발굽을 찍겠습니다.”'],
+['묵요','“성급하십니다, 장군. 폐하, 기마는 많이 먹습니다. 병력이 늘수록 군량은 병력의 십분의 육씩 사라지고, 곳간이 비면 민심이 흔들립니다. 민심이 무너지면 국경의 눈보다 먼저 나라가 녹습니다.”'],
+['강철','“그래서 책사는 늘 싸움을 아끼라고 하지.”'],
+['묵요','“아끼라는 것이 아닙니다. 가장 값싼 때에 치자는 것입니다. 소신이 그림자를 보내 적의 금고를 비워 놓겠습니다. 그 금화로 폐하의 기마를 먹이십시오.”'],
+['','통치자가 지도를 펼쳤다. 북쪽에서 내려다본 대륙은 정말로 셋으로 나뉘어 있었다. 같은 시각 서라의 무영은 창가에서 북쪽을 바라보고 있었고, 남월의 청호는 말없이 산성의 빗장을 걸고 있었다.'],
+['강철','“하명하십시오, 폐하. 북풍이 먼저 불 것입니다.”'],
+['','이제부터 전쟁에 관한 급보는 대장군이, 내정과 외교에 관한 소식은 책사가 직접 통치자에게 아뢸 것이다.'],
+['','이제 천하삼분지계의 막이 오른다. 두 나라의 영토를 모두 빼앗는 자만이 이 전란을 끝낼 수 있다.']],
+'서라국':[
+['','황금빛 곡식이 넘실대는 서라국의 궁성. 풍요로운 나라답게 연회장은 환했지만, 회담에서 돌아온 두 사람의 표정은 어두웠다.','제6장 · 서라국 황금궁'],
+['은수','“서라의 옥새 조각은 황금상단의 지하 금고에 맡겨져 있습니다. 서라가 평화를 사랑해서가 아닙니다. 부유한 자는 칼이 아니라 계산으로 싸우기 때문이지요. 그리고 계산은 늘 이렇게 말합니다. 셋 중 하나는 반드시 사라져야 한다고.”'],
+['무영','“북풍은 해마다 우리 변경을 약탈했고, 남월은 산길을 막아 교역을 끊었소. 평화를 원한다는 말은 이제 아무도 믿지 않을 것이오.”'],
+['무영','“폐하, 서라는 가장 부유합니다. 그러나 가장 부유한 나라가 가장 먼저 노려진다는 것도 압니다. 금화로 병사를 모을 수는 있습니다. 문제는 그 병사들을 먹이는 일입니다.”'],
+['은수','“장군의 말씀이 맞습니다. 서라의 곳간에는 금화가 넘치지만 군량은 병력의 십분의 육씩 사라집니다. 곳간이 비면 민심이 하루가 다르게 떨어집니다. 우리의 적은 북풍의 기마가 아니라 비어 가는 곡식 창고입니다.”'],
+['무영','“그렇다면 금화로 농지를 일구고 성벽을 쌓으면 될 일이오. 서라의 금화는 곧 서라의 칼입니다.”'],
+['은수','“소신은 백성의 마음을 다독이겠습니다. 소문 한 줄, 노래 한 곡으로도 민심은 오릅니다. 칼보다 먼저 사람을 얻는 것이 서라의 방식이지요.”'],
+['','통치자는 곡창이 내려다보이는 발코니에 섰다. 북풍의 강철은 말을 모으고 있었고, 남월의 진유는 산 너머에서 서라의 곳간을 헤아리고 있을 터였다.'],
+['무영','“폐하, 금빛 깃발을 올리십시오. 서라가 이 천하를 먹이겠습니다.”'],
+['','이제부터 전쟁에 관한 급보는 대장군이, 내정과 외교에 관한 소식은 책사가 직접 통치자에게 아뢸 것이다.'],
+['','이제 천하삼분지계의 막이 오른다. 두 나라의 영토를 모두 빼앗는 자만이 이 전란을 끝낼 수 있다.']],
+'남월국':[
+['','구름이 걸린 산맥 위의 남월 산성. 회담에서 돌아온 청호와 진유가 통치자 앞에 섰다.','제6장 · 남월 산성'],
+['청호','“남월의 옥새 조각은 천연 요새의 가장 깊은 석실에 있습니다. 선조께서는 ‘이 산을 넘는 자는 황제의 자격이 없다’ 하셨지요. 소신은 그 말을 믿고 평생 성문을 지켜 왔습니다.”'],
+['진유','“허나 장군, 성문을 지키는 것만으로는 황제를 얻지 못합니다. 지키는 나라는 결국 두 나라가 손을 잡고 포위할 때 무너집니다. 먼저 한 나라를 꺾어야 하지요. 그 차례를 정하는 것이 소신의 일입니다.”'],
+['청호','“폐하, 남월은 산이 지켜 주는 나라입니다. 창과 방패를 세우고 성문을 닫으면 어떤 대군도 산 아래에서 부서질 것입니다.”'],
+['진유','“허나 지키기만 하는 나라는 천천히 굶어 죽습니다. 병력이 늘수록 군량은 병력의 십분의 육씩 사라지는데 산지는 곡식이 귀합니다. 소신이 적의 곡식을 빼돌려 오겠습니다. 남의 곳간으로 먹는 것도 산악의 방식이지요.”'],
+['청호','“……남의 곳간을 터는 일은 내 칼의 몫이 아니군.”'],
+['진유','“장군은 문을 지키십시오. 도둑질은 책사의 몫입니다.”'],
+['','통치자는 성벽에 올라 아래를 내려다보았다. 북풍의 묵요는 그림자를 풀고 있었고, 서라의 은수는 소문을 퍼뜨리고 있을 터였다. 철벽 같은 방패와 보이지 않는 손이 통치자의 명을 기다렸다.'],
+['청호','“명을 내리십시오, 폐하. 남월은 물러서지 않습니다.”'],
+['','이제부터 전쟁에 관한 급보는 대장군이, 내정과 외교에 관한 소식은 책사가 직접 통치자에게 아뢸 것이다.'],
+['','이제 천하삼분지계의 막이 오른다. 두 나라의 영토를 모두 빼앗는 자만이 이 전란을 끝낼 수 있다.']]
+};
+const storyOf=k=>[...ST_PRO,...ST_C[k]];
+function storyHTML(){
+ const L=storyOf(S.pc),i=S.sv,w=L[i][0],t=L[i][1];let place='';for(let j=i;j>=0;j--)if(L[j][2]){place=L[j][2];break}
+ const ch=CH[w],col=ch?CO[ch.c].hx:'#a8a29e';
+ const spk=ch?`<div class="flex items-center gap-3 mb-3"><div class="text-3xl w-14 h-14 flex items-center justify-center rounded-full border-2" style="border-color:${col};background:${col}22">${ch.i}</div><div><div class="font-black text-lg" style="color:${col}">${w}</div><div class="text-xs text-stone-400">${ch.c} ${ch.r}</div></div></div>`:`<div class="text-stone-500 text-xs mb-3 tracking-widest">— 사관의 기록 —</div>`;
+ return `<div class="min-h-screen flex items-center justify-center p-4" style="background:radial-gradient(ellipse at top,#292524,#0c0a09)"><div class="w-full max-w-xl"><div class="text-amber-500 text-sm font-bold mb-2 text-center">${place}</div><div class="bg-stone-900/90 border-2 border-amber-900/60 rounded-2xl p-5 min-h-[14rem]">${spk}<p class="leading-8 ${ch?'':'italic text-stone-300'}">${t}</p></div><div class="flex justify-between items-center mt-4"><button onclick="S.sv=9999;R()" class="text-xs text-stone-500 hover:text-stone-300">건너뛰기 ⏭</button><div class="text-xs text-stone-600">${i+1} / ${L.length}</div><div class="flex gap-2"><button onclick="S.sv=Math.max(0,S.sv-1);R()" ${i?'':'disabled'} class="px-3 py-2 bg-stone-800 rounded">◀</button><button onclick="S.sv++;R()" class="px-6 py-2 bg-amber-700 hover:bg-amber-600 rounded font-bold">${i===L.length-1?'전장으로 ▶':'다음 ▶'}</button></div></div></div></div>`;
+}
+document.addEventListener('keydown',e=>{if(!S)return;if(S.sv!==undefined&&S.sv<storyOf(S.pc).length&&(e.key==='Enter'||e.key===' ')){e.preventDefault();S.sv++;R();return}if(S.trp&&!S.end&&!S.cfg&&!S.mp&&!(S.bq&&S.bq.length)&&(e.key==='Enter'||e.key===' ')){e.preventDefault();S.trp=null;R()}});
+function start(k){
+ S={pc:k,turn:1,pd:{...CO[k].i,t:{...CO[k].i.t}},nd:{},logs:[],al:{},ten:{},sh:{},tab:'in',dr:z(),so:z(),dc:z(),tg:'',ev:null,evq:[],end:null,m:'',gs:'',hold:false,na:null,dq:[],dp:null,mp:0,ms:'',cd:{},inv:{farm:0,com:0,wall:0},st:{bw:0,bl:0,kl:0,ls:0},dd:false,df:DFK,un:null,al2:false,sv:0,mv:[],bq:[],ds:null,cfg:false,coalition:false,trp:null};
+ Object.keys(CO).forEach(c=>{S.ten[c]=0;if(c!==k)S.nd[c]={...CO[c].i,t:{...CO[c].i.t},alive:true}});
+ Object.keys(SH).forEach(h=>S.sh[h]={owner:null,t:{...SH[h].t}});
+ log('옥좌 등극',k+'의 통치자가 되셨습니다. 적 두 나라의 영토를 모두 빼앗아 0으로 만드십시오.','sys');log('군량 안내','군량 유지비는 병력의 6%입니다. 농업 개발·거점 점령으로 군량을 늘리고, 상단의 군량 예상을 확인하십시오. 징집은 턴을 소모하지 않으니 징집 후 바로 출진할 수 있습니다.','sys');R();
+}
+const over=(w,m)=>{const sc=Math.floor(S.pd.land/100)+S.st.bw*50+(w?Math.max(0,3000-S.turn*10):0);let best=sc;
+ try{best=Math.max(sc,+localStorage.getItem('jeonran_best')||0);localStorage.setItem('jeonran_best',best);localStorage.removeItem('jeonran');localStorage.removeItem('jeonran_meta')}catch(e){}
+ const ach=[w&&S.st.bl===0&&'무패의 통일',S.inv.farm+S.inv.com+S.inv.wall>=15&&'내정의 달인',w&&S.turn<=60&&'속전속결',S.st.bw>=10&&'백전노장'].filter(Boolean);
+ S.trp=null;S.end={w,m,sc,best,ach};sfx(w?WIN:LOSE);R()};
+const pick=x=>{S.tg=x;S.tab='mil';S.m='';R()};
+const tab=x=>{S.tab=x;S.m='';R()};
+function mod(key,k,a){let v=Math.max(0,S[key][k]+a);if(key!=='dr'&&v>S.pd.t[k])v=S.pd.t[k];S[key][k]=v;R()}
+function all(key){S[key]={...S.pd.t};R()}
+const draftCost=()=>K.reduce((a,k)=>a+S.dr[k]*UN[k].c,0)*(hasSh('북방 한철 광산')?.9:1);
+
+function internal(){if(S.hold)return M(HM);snap();
+ const p=clone();
+ let g=Math.floor(p.land*.03*p.min/100+900);if(S.pc==='서라국')g=Math.floor(g*1.25);if(hasSh('중원 황금상단'))g+=2500;
+ let f=Math.floor(p.land*.04*p.min/100+1200);if(hasSh('서라 대곡창'))f+=2000;if(S.pc==='서라국')f=Math.floor(f*1.25);
+ p.gold+=g;p.food+=f;p.min=Math.min(100,p.min+8);
+ log('치국안민 반포','금화 +'+fmt(g)+', 군량 +'+fmt(f)+', 민심 +8');endTurn(p);
+}
+function draft(){if(S.hold)return M(HM);
+ if(S.dd)return M('이번 턴에는 이미 징집했습니다. (턴당 1회)');snap();
+ const p=clone(),c=draftCost(),n=tot(S.dr);
+ if(!n)return M('징집할 병력을 선택하세요.');
+ if(p.gold<c)return M('국고가 부족합니다!');
+ if(p.food<=0)return M('군량이 고갈되어 징집할 수 없습니다!');
+ K.forEach(k=>p.t[k]+=S.dr[k]);p.gold-=c;
+ log('군사 징집','금화 '+fmt(c)+' 소모, '+fmt(n)+'명 모집 (턴 소모 없음)');S.dr=z();S.pd=p;S.dd=true;S.m='';R();
+}
+function dip(a,t){if(S.hold)return M(HM);
+ const p=clone(),pen=hasSh('중원 황금상단')?.5:1,r=Math.random(),e=S.nd[t];
+ if(a==='ally'){S.al[S.pc]=t;S.al[t]=S.pc;S.ten[t]=Math.max(0,S.ten[t]-30);log('동맹 결성',t+'와(과) 불가침 동맹을 맺었습니다.','d')}
+ else if(a==='break'){delete S.al[S.pc];delete S.al[t];p.min-=10;S.ten[t]+=80;log('동맹 파기','배신으로 '+t+'와의 동맹을 파기했습니다! (민심 -10, 적대감 폭발)','c')}
+ else if(a==='tribute'){
+  if(r<.6){p.gold+=3000;p.food+=2000;S.ten[t]+=20;log('조공 강요 성공',t+'을(를) 겁박하여 금화 +3,000, 군량 +2,000을 얻었습니다.','d')}
+  else{p.min-=5;S.ten[t]+=Math.floor(30*pen);log('조공 강요 실패',t+'이(가) 요구를 거절하며 분노합니다. (민심 -5)','c')}
+ }else{
+  if(r<.65){
+   if(S.pc==='북풍국'){p.gold+=4000;e.gold=Math.max(0,e.gold-4000);log('책사 파견 (묵요)',t+'의 국고 4,000을 은밀히 탈취했습니다.','d')}
+   if(S.pc==='서라국'){p.min=Math.min(100,p.min+15);log('책사 파견 (은수)','선동으로 아군 민심이 크게 올랐습니다. (+15)','d')}
+   if(S.pc==='남월국'){p.food+=4000;e.food=Math.max(0,e.food-4000);log('책사 파견 (진유)',t+'의 군량 4,000을 가로챘습니다.','d')}
+   S.ten[t]+=15;
+  }else{p.gold=Math.max(0,p.gold-2000);S.ten[t]+=Math.floor(40*pen);log('책사 파견 발각','사절단이 잡혀 뇌물(금화 2,000)을 빼앗기고 관계가 악화되었습니다.','c')}
+ }
+ endTurn(p);
+}
+function conquer(n,p){
+ const e=S.nd[n];p.land+=e.land;e.land=0;e.alive=false;own(n).forEach(h=>{S.sh[h].owner=S.pc;S.sh[h].t=z()});
+ if(S.al[S.pc]===n){delete S.al[S.pc];delete S.al[n]}S.tg='';
+}
+function sortie(){if(S.hold)return M(HM);
+ const T=S.tg&&S.tg[0]==='@'?S.tg.slice(1):S.tg,n=tot(S.so);
+ if(!T)return M('공격할 목표를 선택하세요.');
+ if(!n)return M('출진할 병력을 선택하세요.');
+ const isN=!!S.nd[T],sh=S.sh[T],ow=isN?T:sh.owner;
+ if(ow===S.pc)return M('이미 아군의 소유입니다.');
+ if(ow&&S.al[S.pc]===ow)return M('동맹국입니다. 동맹을 파기한 뒤 공격하십시오.');
+ const p=clone(),cost=atkCost(n,T);
+ if(p.food<cost)return M('출진 군량이 부족합니다. (필요 '+fmt(cost)+')');
+ p.food-=cost;
+ S.un=null;const nt=isN?S.nd[T].t:sh.t,before={...nt},sent={...S.so};
+ const pc=calc(S.pc,S.so,false,null)*cb(S.so,nt)*mor(),nc=calc(ow,nt,true,isN?null:T)*cb(nt,S.so);
+ const nmA={n:S.pc,g:CO[S.pc].gen,s:CO[S.pc].adv},nmB={n:ow||'중립군',g:ow?CO[ow].gen:'중립군 장수',s:ow?CO[ow].adv:'중립군 책사'};
+ S.so=z();
+ startBattle({title:'정벌전 · '+S.pc+' → '+(isN?T+' 본성':T),mode:'sortie',oA:S.pc,A0:sent,oB:ow,B0:before,site:isN?null:T,mA:mor(),mB:1,nA:nmA,nB:nmB,playerSide:'A',ctx:{p,T,isN,sh,ow,before,sent,cost,pc,nc}});
+ R();
+}
+function status(){
+ log('턴 종료 현황',[S.pc,...alive()].map(c=>{const d=c===S.pc?S.pd:S.nd[c];return c+(c===S.pc?' (나)':'')+': 본국 병력 '+fmt(tot(d.t))+' · 수비병 '+fmt(gar(c))+' · 영토 '+fmt(d.land)+' · 금화 '+fmt(d.gold)+' · 군량 '+fmt(d.food)+' · 거점 '+(own(c).join(', ')||'없음')}).join('\n'),'sys','현황');
+}
+const FC=.3;
+const gar=c=>own(c).reduce((s,h)=>s+tot(S.sh[h].t),0);
+const HM='먼저 점령한 거점의 수비병력을 배치하고 [배치 완료]를 누르세요.';
+const nA=()=>S.na&&S.na.exp>S.turn;
+const invChance=n=>{const e=S.nd[n];if(!e||!e.alive||S.al[S.pc]===n||tot(e.t)<3000||e.food<tot(e.t)*.6*FC||(S.cd[n]||0)>S.turn)return 0;return Math.min(.85,(Math.max(0,(S.ten[n]-12)/100)+(tot(e.t)>tot(S.pd.t)?.08:0)+.05+Math.min(.08,S.turn/1500))*DF[S.df].inv)};
+const wp=w=>{let r=Math.random()*Object.values(w).reduce((a,b)=>a+b,0);for(const k in w){if((r-=w[k])<0)return k}return 'int'};
+function gmod(k,a){const g=S.sh[S.gs].t,p=S.pd.t;a=a>0?Math.min(a,p[k]):-Math.min(-a,g[k]);g[k]+=a;p[k]-=a;R()}
+function gall(f){const g=S.sh[S.gs].t,p=S.pd.t;K.forEach(k=>{if(f){g[k]+=p[k];p[k]=0}else{p[k]+=g[k];g[k]=0}});R()}
+const endGar=()=>{S.hold=false;endTurn(S.pd)};
+function nextStep(){
+ if(S.pd.land<=0)return over(0,'영토를 모두 잃어 나라가 멸망했습니다.');
+ if(S.bq&&S.bq.length)return R();
+ if(S.ds||S.ev)return R();
+ if(S.evq&&S.evq.length){S.ev=S.evq.shift();S.dc=z();sfx(ALARM);return R()}
+ if(S.dq.length){S.dp=S.dq.shift();return R()}
+ status();S.trp=S.turn;S.turn++;S.m='';R();
+}
+function ansDp(ok){
+ const d=S.dp,n=d.from,p=S.pd;S.dp=null;
+ if(d.type==='ally'){if(ok){S.al[S.pc]=n;S.al[n]=S.pc;S.ten[n]=Math.max(0,S.ten[n]-30);log('동맹 수락',n+'와(과) 동맹을 맺었습니다.','d')}else{S.ten[n]+=5;log('동맹 거절',n+'의 동맹 제의를 거절했습니다.','d')}}
+ else if(ok){p.gold-=3000;p.food-=2000;S.nd[n].gold+=3000;S.nd[n].food+=2000;S.ten[n]=Math.max(0,S.ten[n]-10);log('조공 납부',n+'에 금화 3,000, 군량 2,000을 바쳤습니다.','d')}
+ else{S.ten[n]=Math.min(100,S.ten[n]+25);log('조공 거부',n+'의 요구를 거부했습니다. 적대감 +25 (침공 확률 상승)','c')}
+ nextStep();
+}
+const spyFx=(n,e,t,tn)=>{
+ if(Math.random()>=.65){e.gold=Math.max(0,e.gold-2000);return '실패: 사절단이 붙잡혀 금화 2,000을 잃었습니다.'}
+ if(n==='북풍국'){const g=Math.min(4000,t.gold);t.gold-=g;e.gold+=g;return '성공: '+tn+'의 금화 '+fmt(g)+'을 탈취했습니다.'}
+ if(n==='서라국'){e.min=Math.min(100,e.min+15);return '성공: 선동으로 자국 민심이 +15 올랐습니다.'}
+ const f=Math.min(4000,t.food);t.food-=f;e.food+=f;return '성공: '+tn+'의 군량 '+fmt(f)+'을 가로챘습니다.';
+};
+function raid(n,hh){
+ const e=S.nd[n],s=S.sh[hh],send=part(e.t,.6);e.food=Math.max(0,e.food-Math.floor(tot(send)*FC));
+ const a=calc(n,send,false,null)*cb(send,s.t),d=calc(S.pc,s.t,true,hh)*cb(s.t,send),nmA={n,g:CO[n].gen,s:CO[n].adv},nmB={n:S.pc,g:CO[S.pc].gen,s:CO[S.pc].adv},gb=tl(s.t),b0={...s.t};
+ startBattle({title:'거점 방어전 · '+hh,mode:'raid',oA:n,A0:send,oB:S.pc,B0:b0,site:hh,mA:1,mB:mor(),nA:nmA,nB:nmB,playerSide:'B',ctx:{n,hh,send,gb,b0,a,d}});
+}
+function npcTurn(n,q,coalRole,raidedSet){
+ const e=S.nd[n],p=S.pd,others=alive().filter(x=>x!==n),on=others[0],oe=on&&S.nd[on];
+ const ai=DF[S.df].ai;e.gold+=Math.floor(3000*ai);e.food+=Math.floor(2000*ai);{const up=Math.floor((tot(e.t)+gar(n)*.5)*UPK);if(e.food>=up)e.food-=up;else{e.food=0;K.forEach(k=>e.t[k]=Math.floor(e.t[k]*.92))}}
+ const et=tot(e.t);
+ if(S.coalition){
+  S.ten[n]=Math.max(S.ten[n],85);
+  if(et>=2500&&(S.cd[n]||0)<=S.turn){
+   S.cd[n]=S.turn+2;
+   const hs=own(S.pc).filter(h=>!raidedSet||!raidedSet.has(h)).sort((a,b)=>tot(S.sh[a].t)-tot(S.sh[b].t));
+   if(coalRole==='sh'&&hs.length){
+    if(raidedSet)raidedSet.add(hs[0]);
+    raid(n,hs[0]);
+    return;
+   }
+   const a=part(e.t,.55);e.food=Math.max(0,e.food-Math.floor(tot(a)*FC));q.push({from:n,t:a});mvp(n,S.pc);
+   log('반패권 동맹 협공 개시','반패권 동맹의 일원으로 병력 '+fmt(tot(a))+'명 ['+tl(a)+']을 이끌고 아국 본성으로 진군합니다!','c',n);
+   return;
+  }
+  if(e.gold>=3000){
+   const CTR={infantry:'bow',spear:'infantry',bow:'shield',shield:'infantry',cavalry:'spear'},dom=K.reduce((a,k)=>p.t[k]>p.t[a]?k:a,'infantry'),sp=Math.random()<.7?CTR[dom]:{'북풍국':'cavalry','서라국':'bow','남월국':'shield'}[n],g0=Math.min(e.gold*.8,12000),x=Math.floor(g0*.6/UN.infantry.c),y=Math.floor(g0*.4/UN[sp].c);e.gold-=g0;e.t.infantry+=x;e.t[sp]+=y;
+   log('반패권 동맹 병력 증강','협공을 대비해 금화 '+fmt(g0)+'을 들여 보병 '+fmt(x)+'명, '+UN[sp].n+' '+fmt(y)+'명을 모집했습니다.','n',n);
+  }else{e.gold+=3500;e.food+=3500;log('반패권 동맹 군비 확충','금화 +3,500, 군량 +3,500','n',n)}
+  return;
+ }
+ const bt=S.al[S.pc]===n&&S.ten[n]>=60&&tot(e.t)>tot(p.t)*1.3&&Math.random()<.05;
+ if(bt||Math.random()<invChance(n)){
+  if(bt){log('동맹 파기 기습!','조약을 찢고 아국을 기습 침공합니다!','c',n);delete S.al[n];delete S.al[S.pc]}
+  S.cd[n]=S.turn+3;const hs=own(S.pc).filter(h=>!raidedSet||!raidedSet.has(h));
+  if(hs.length&&(q.length||Math.random()<.6)){const th=hs.sort((a,b)=>tot(S.sh[a].t)-tot(S.sh[b].t))[0];if(raidedSet)raidedSet.add(th);raid(n,th);return}
+  if(!q.length){const a=part(e.t,.5);e.food-=Math.floor(tot(a)*FC);q.push({from:n,t:a});mvp(n,S.pc);log('아국 침공 개시','병력 '+fmt(tot(a))+'명 ['+tl(a)+']을 이끌고 아국 본성으로 진군합니다! (적대감 '+Math.floor(S.ten[n])+')','c',n)}
+  return;
+ }
+ const ns=S.turn>=4&&(S.cd[n+'c']||0)<=S.turn?Object.keys(S.sh).find(k=>!S.sh[k].owner&&tot(S.sh[k].t)<et*.5):null;
+ const a=wp({cap:ns?25:0,oth:on&&!nA()&&et>tot(oe.t)*1.2?15:0,con:e.gold>=3000?(et<12000?30:10):0,int:15,dip:25});
+ if(a==='cap'){
+  S.cd[n+'c']=S.turn+4;const s=S.sh[ns],gc=tot(s.t),b={...e.t};s.owner=n;K.forEach(k=>e.t[k]=Math.floor(e.t[k]*.8));const lo=lossOf(b,e.t),gv=part(e.t,.25);K.forEach(k=>e.t[k]-=gv[k]);s.t=gv;
+  mvp(n,ns);log('중립 거점 점령','['+ns+'] 점령! 중립군 '+fmt(gc)+'명을 격파했습니다.\n- 병력 손실: '+fmt(tot(lo))+'명 ['+tl(lo)+']\n- 수비병 배치: '+fmt(tot(gv))+'명, 본국 남은 병력 '+fmt(tot(e.t))+'명','sys',n);
+ }else if(a==='oth'){
+  const o=oe,b1={...e.t},b2={...o.t},sm2=simP(n,e.t,on,o.t,null,1,1,{n,g:CO[n].gen,s:CO[n].adv},{n:on,g:CO[on].gen,s:CO[on].adv}),win=sm2.win,g=win?Math.max(0,Math.min(8000,o.land-1000)):0;e.land+=g;o.land-=g;
+  K.forEach(k=>{e.t[k]=sm2.A[k];o.t[k]=sm2.B[k]});mvp(n,on);const l1=lossOf(b1,e.t),l2=lossOf(b2,o.t);
+  log('타국 침공 → '+on,n+'이(가) '+on+'을(를) 공격했습니다. 결과: '+(win?'승리':'공격 실패')+'\n- '+n+' 전사 '+fmt(tot(l1))+'명 ['+tl(l1)+']\n- '+on+' 전사 '+fmt(tot(l2))+'명 ['+tl(l2)+']'+(win?'\n- 영토 '+fmt(g)+'km² 탈취':''),'c',n);
+ }else if(a==='con'){
+  const CTR={infantry:'bow',spear:'infantry',bow:'shield',shield:'infantry',cavalry:'spear'},dom=K.reduce((a,k)=>p.t[k]>p.t[a]?k:a,'infantry'),sp=Math.random()<.65?CTR[dom]:{'북풍국':'cavalry','서라국':'bow','남월국':'shield'}[n],g0=Math.min(e.gold*.8,12000),x=Math.floor(g0*.6/UN.infantry.c),y=Math.floor(g0*.4/UN[sp].c);e.gold-=g0;e.t.infantry+=x;e.t[sp]+=y;
+  log('병력 징집','금화 '+fmt(g0)+'을 들여 보병 '+fmt(x)+'명, '+UN[sp].n+' '+fmt(y)+'명을 모집했습니다. (본국 병력 '+fmt(tot(e.t))+'명)','n',n);
+ }else if(a==='dip'){
+  const op=[];
+  if(!S.al[S.pc]&&S.ten[n]<45)op.push(['ally','p']);
+  if(S.al[S.pc]!==n&&S.ten[n]>=25&&et>tot(p.t)*.8)op.push(['trib','p']);
+  if(S.al[S.pc]!==n)op.push(['spy','p']);
+  if(on){if(!nA())op.push(['ally','o']);op.push(['trib','o'],['spy','o'])}
+  if(!op.length){e.gold+=3000;e.food+=3000;log('내정','금화 +3,000, 군량 +3,000','n',n);return}
+  const [ty,tg]=op[Math.random()*op.length|0];
+  if(tg==='p'){
+   if(ty==='spy'){const r=spyFx(n,e,p,S.pc);if(r[0]==='실')S.ten[n]=Math.min(100,S.ten[n]+10);log('책사 파견 → 아국','['+n+' 책사 '+CO[n].adv+'] '+r+(r[0]==='실'?' (적대감 +10)':''),'d',n)}
+   else{S.dq.push({from:n,type:ty});log(ty==='ally'?'동맹 제의 → 아국':'조공 요구 → 아국',n+'이(가) '+(ty==='ally'?'동맹을 제안했습니다.':'금화 3,000, 군량 2,000을 요구했습니다.'),'d',n)}
+  }else if(ty==='ally'){
+   if(Math.random()<.6){S.na={exp:S.turn+8};log('동맹 결성 → '+on,n+'와(과) '+on+'이(가) 8턴간 불가침 동맹을 맺었습니다.','d',n)}else log('동맹 제의 → '+on,on+'이(가) '+n+'의 동맹 제의를 거절했습니다.','d',n)
+  }else if(ty==='trib'){
+   if(et>tot(oe.t)&&Math.random()<.6){const g=Math.min(3000,oe.gold),f=Math.min(2000,oe.food);oe.gold-=g;oe.food-=f;e.gold+=g;e.food+=f;log('조공 강요 → '+on,n+'이(가) '+on+'에게 금화 '+fmt(g)+', 군량 '+fmt(f)+'을 받아냈습니다.','d',n)}
+   else log('조공 강요 → '+on,on+'이(가) '+n+'의 요구를 거절했습니다.','d',n)
+  }else log('책사 파견 → '+on,'['+n+' 책사 '+CO[n].adv+'] '+spyFx(n,e,oe,on),'d',n);
+ }else{e.gold+=3000;e.food+=3000;log('내정','금화 +3,000, 군량 +3,000 (보유 금화 '+fmt(e.gold)+', 군량 '+fmt(e.food)+')','n',n)}
+}
+function endTurn(p){
+ S.m='';S.dq=[];S.dd=false;
+ const m4=['infantry','spear','bow','cavalry'];
+ if(hasSh('동부 용병 주둔지')){m4.forEach(k=>p.t[k]+=100);log('용병 합류 (용병 주둔지)','떠돌이 용병 400명이 본국에 합류했습니다. [보병 100 · 창병 100 · 궁병 100 · 기마병 100]','sys')}
+ else{const o=S.sh['동부 용병 주둔지'].owner;if(o&&S.nd[o]){m4.forEach(k=>S.nd[o].t[k]+=100);log('용병 합류 (용병 주둔지)','용병 400명이 합류했습니다.','sys',o)}}
+ p.gold+=800*S.inv.com;p.food+=700*S.inv.farm;S.pd=p;
+ if(S.inv.farm+S.inv.com+S.inv.wall>=15&&p.gold>=150000)return over(1,'내정을 극에 달해 천하의 민심이 스스로 귀의했습니다. (경제 승리)');
+ if(!alive().length)return over(1,'모든 적국의 영토를 0으로 만들어 천하를 통일했습니다!');
+ const totLand=p.land+alive().reduce((s,n)=>s+S.nd[n].land,0);
+ const over60=alive().length===2&&(p.land/(totLand||1))>.6;
+ if(over60&&!S.coalition){
+  S.coalition=true;
+  const [a1,a2]=alive();
+  [a1,a2].forEach(n=>{
+   if(S.al[S.pc]===n){delete S.al[S.pc];delete S.al[n]}
+   S.ten[n]=Math.max(S.ten[n],85);
+   S.cd[n]=0;
+  });
+  S.na={exp:9999};
+  log('천하 견제 · 반패권 동맹 결성!','아국의 영토가 전체의 '+Math.round(p.land/totLand*100)+'%를 넘어서자, 위기감을 느낀 '+a1+'와(과) '+a2+'이(가) 적대감을 풀고 자동으로 반패권 동맹을 결성했습니다! 두 나라가 동시에 아국의 거점과 본성을 협공합니다.','c');
+  sfx(ALARM);
+ }else if(!over60&&S.coalition){
+  S.coalition=false;
+  if(S.na&&S.na.exp===9999)S.na=null;
+  log('반패권 동맹 해체','아국의 영토 비중이 줄어들자 적국 간의 반패권 결속이 느슨해졌습니다.','sys');
+ }
+ alive().forEach(n=>{const e=S.nd[n];if(S.coalition){S.ten[n]=Math.max(85,S.ten[n]);return}S.ten[n]=Math.max(0,Math.min(100,S.ten[n]+2+own(S.pc).length*2+(p.land>e.land?2:0)+(tot(p.t)>tot(e.t)*1.3?2:0)-(S.al[S.pc]===n?7:0)))});
+ const q=[],raidedSet=new Set();
+ const order=alive().sort(()=>Math.random()-.5);
+ const roles=S.coalition?(own(S.pc).length?['sh','cap']:['cap','cap']):[null,null];
+ order.forEach((n,idx)=>npcTurn(n,q,roles[idx],raidedSet));
+ alive().forEach(n=>{if(S.turn>=3&&Math.random()<.04){const e=S.nd[n],f=Math.random()<.5,l=Math.floor((f?e.food:e.gold)*.2);if(f)e.food-=l;else e.gold-=l;log('적국 재해 첩보','['+n+'] '+(f?'가뭄':'홍수')+'으로 '+(f?'군량 ':'금화 ')+fmt(l)+' 손실','sys',n)}});
+ const up=Math.floor((tot(p.t)+gar(S.pc)*.5)*UPK);
+ if(p.food>=up){p.food-=up;log('군량 소모','본국 '+fmt(tot(p.t))+'명 + 수비병 '+fmt(gar(S.pc))+'명(소모 절반) 유지에 군량 -'+fmt(up)+' (남은 군량 '+fmt(p.food)+')')}
+ else{p.food=0;p.min-=10;log('자원 고갈','군량이 떨어져 민심이 폭락합니다! (민심 -10)','c')}
+ if(p.food>=up*3&&p.min<100)p.min++;
+ if(p.min<=0){log('반란 발생','민심이 0이 되어 백성들이 궐기했습니다.','c');return over(0,'민심이 0이 되어 반란이 일어났습니다.')}
+ rollDis(p);
+ if(q.length){S.evq=q.slice(1);S.ev=q[0];S.dc=z();sfx(ALARM)}
+ nextStep();
+}
+function defend(){
+ const p=clone(),e=S.ev,n=tot(S.dc),cost=Math.floor(n*FC*(hasSh('서라 대곡창')?.9:1));
+ if(p.food<cost)return M('군량이 부족합니다! (필요 '+fmt(cost)+') 병력을 줄이거나 [방어 포기]를 선택하세요.');
+ p.food-=cost;
+ S.un=null;const ac=calc(e.from,e.t,false,null)*cb(e.t,S.dc),dc=calc(S.pc,S.dc,true,null)*cb(S.dc,e.t)*mor();
+ const nmA={n:e.from,g:CO[e.from].gen,s:CO[e.from].adv},nmB={n:S.pc,g:CO[S.pc].gen,s:CO[S.pc].adv},used={...S.dc},evFrom=e.from,evTroops={...e.t};
+ S.ev=null;S.dc=z();
+ startBattle({title:'수성전 · '+evFrom+'의 침공',mode:'defend',oA:evFrom,A0:evTroops,oB:S.pc,B0:used,site:null,mA:1,mB:mor(),nA:nmA,nB:nmB,playerSide:'B',ctx:{p,evFrom,evTroops,used,cost,ac,dc}});
+ R();
+}
+const CAP={'북풍국':[170,115],'서라국':[135,410],'남월국':[665,420]};
+const SHP={'중원 황금상단':[400,250],'서라 대곡창':[235,335],'북방 한철 광산':[600,110],'동부 용병 주둔지':[690,265],'남월 천연 요새':[525,425]};
+const CV={'중원 황금상단':0,'서라 대곡창':1,'북방 한철 광산':2,'동부 용병 주둔지':3,'남월 천연 요새':4};
+const IC={'중원 황금상단':'🏦','서라 대곡창':'🌾','북방 한철 광산':'⛏️','동부 용병 주둔지':'⚔️','남월 천연 요새':'🏰'};
+const TR={'중원 황금상단':'강이 흐르는 비옥한 평원. 사방으로 길이 열린 교역의 중심지입니다.','서라 대곡창':'끝없이 펼쳐진 평지의 곡창지대. 지형의 방해가 없어 대군이 움직이기 좋습니다.','북방 한철 광산':'거친 바위산과 광맥이 이어진 북방 고원. 철이 풍부합니다.','동부 용병 주둔지':'숲과 구릉 사이에 천막이 늘어선 용병의 야영지입니다.','남월 천연 요새':'깎아지른 험준한 산맥 위에 세운 천연 요새. 공략이 극히 어렵습니다.'};
+const CT={'북풍국':'눈 덮인 북방 설원과 침엽수림','서라국':'황금빛 곡식이 넘실대는 대평원','남월국':'험준한 산맥이 이어진 산악 지대'};
+
+let TMC={k:''};
+function terrain(){
+ const al=Object.keys(CO).filter(c=>c===S.pc||S.nd[c].alive),L={};al.forEach(c=>L[c]=c===S.pc?S.pd.land:S.nd[c].land);
+ const key=al.map(c=>c+':'+L[c]).join('|');if(TMC.k===key)return TMC;
+ const W=400,H=260,N=W*H,hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+ const hs=(x,y)=>{const h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h)};
+ const vn=(x,y)=>{const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);return hs(xi,yi)*(1-u)*(1-v)+hs(xi+1,yi)*u*(1-v)+hs(xi,yi+1)*(1-u)*v+hs(xi+1,yi+1)*u*v};
+ const fb=(x,y)=>(vn(x,y)+vn(x*2,y*2)*.5+vn(x*4,y*4)*.25+vn(x*8,y*8)*.125)/1.875;
+ const bump=(x,y,cx,cy,r,a)=>a*Math.exp(-((x-cx)**2+(y-cy)**2)/(r*r));
+ const t2=al.reduce((a,c)=>a+L[c],0)||1,site=al.map(c=>({c,x:CAP[c][0]/2,y:CAP[c][1]/2,w:60000*L[c]/t2,rgb:hx(CO[c].hx),sx:0,sy:0,n:0}));
+ const hg=new Float32Array(N),ow=new Int8Array(N).fill(-1),cd=new Float32Array(N);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,e=((x-200)/190)**2+((y-131)/121)**2+(fb(x*.05+3,y*.05)-.47)*.5;cd[i]=e;if(e>=1)continue;
+  hg[i]=Math.min(1,Math.max(0,fb(x*.022,y*.022)*.9+bump(x,y,300,55,45,.35)+bump(x,y,330,212,50,.4)+bump(x,y,85,55,40,.12)-bump(x,y,200,125,40,.1)));
+  const wx=x+(fb(x*.03+9,y*.03)-.47)*50,wy=y+(fb(x*.03,y*.03+7)-.47)*50;let b=1e18,bi=0;site.forEach((s,k)=>{const v=(wx-s.x)**2+(wy-s.y)**2-s.w;if(v<b){b=v;bi=k}});ow[i]=bi;site[bi].sx+=x;site[bi].sy+=y;site[bi].n++}
+ const A=new Uint8ClampedArray(N*4),B=new Uint8ClampedArray(N*4),Cm=new Uint8ClampedArray(N*4),og=a=>a>=0&&a<N?ow[a]:-1;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,j=i*4;
+  if(ow[i]<0){const s=Math.min(1,Math.max(0,(cd[i]-1)/.22)),n=fb(x*.04,y*.2)*16;A[j]=10+(1-s)*20+n*.4;A[j+1]=42+(1-s)*52+n;A[j+2]=76+(1-s)*66+n;A[j+3]=255;B[j+3]=255;Cm[j]=Cm[j+1]=Cm[j+2]=255;Cm[j+3]=255;continue}
+  const h=hg[i],sh=1+((hg[i-W-1]||h)-(hg[i+W+1]||h))*3.4,t=h>.72?[238,240,242]:h>.58?[134,120,102]:h>.44?[134,140,80]:[104,140,68],sn=y<75?(75-y)/75*.55:0,o=site[ow[i]].rgb;
+  let c=[0,1,2].map(q=>((t[q]*(1-sn)+228*sn)*.5+o[q]*.5)*Math.min(1.35,Math.max(.6,sh)));
+  const nb=[og(i-1),og(i+1),og(i-W),og(i+W)];
+  if(nb.some(v=>v<0))c=c.map(v=>v*.55);else if(nb.some(v=>v!==ow[i])&&((x+y)&3)<3)c=c.map(v=>v*.35+30);
+  A[j]=c[0];A[j+1]=c[1];A[j+2]=c[2];A[j+3]=255;B[j]=B[j+1]=B[j+2]=255;B[j+3]=255;Cm[j+3]=255}
+ const mk=d=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d'),im=x.createImageData(W,H);im.data.set(d);x.putImageData(im,0,0);return cv.toDataURL()},cen={};
+ site.forEach(s=>{if(s.n)cen[s.c]=[s.sx/s.n*2,s.sy/s.n*2]});
+ TMC={k:key,a:mk(A),b:mk(B),c:mk(Cm),hg,ow,cen};return TMC;
+}
+
+const sym=(c,f)=>c==='북풍국'?`<path d="M0,-11L2.2,-3L10,0L2.2,3L0,11L-2.2,3L-10,0L-2.2,-3Z" fill="${f}"/><path d="M-7,-7L-1.5,-1.5M7,-7L1.5,-1.5M-7,7L-1.5,1.5M7,7L1.5,1.5" stroke="${f}" stroke-width="1.6"/>`:c==='서라국'?`<circle r="4.5" fill="${f}"/>`+[0,1,2,3,4,5,6,7].map(i=>`<path d="M0,-6.8L0,-11.5" stroke="${f}" stroke-width="2.2" transform="rotate(${i*45})"/>`).join(''):`<path d="M4,-11A10.5,10.5 0 1 0 4,11A8,8 0 1 1 4,-11Z" fill="${f}"/><path d="M-6,10L-1,3L2,7L5,1L10,10Z" fill="${f}"/>`;
+const crest=c=>`<svg width="58" height="66" viewBox="-20 -23 40 46" class="mx-auto mb-2"><path d="M-16,-19H16V4C16,14 6,20 0,22C-6,20 -16,14 -16,4Z" fill="${CO[c].hx}33" stroke="${CO[c].hx}" stroke-width="2.5"/><path d="M-16,-19H16" stroke="#e7d9b0" stroke-width="2"/><g transform="scale(.95)">${sym(c,CO[c].hx)}</g></svg>`;
+const flag=(x,y,h,col,c)=>`<line x1="${x}" y1="${y}" x2="${x}" y2="${y-h}" stroke="#d6d3d1" stroke-width="1.6"/><path d="M${x},${y-h}h19l-5,6l5,6h-19z" fill="${col}" stroke="#000" stroke-width=".6"><animate attributeName="d" dur="1.6s" repeatCount="indefinite" values="M${x},${y-h}h19l-5,6l5,6h-19z;M${x},${y-h}h17l-3,6l3,6h-17z;M${x},${y-h}h19l-5,6l5,6h-19z"/></path><g transform="translate(${x+8},${y-h+6}) scale(.42)" opacity=".92">${sym(c||'',"#fff")}</g>`;
+const cren=(a,b,y,c)=>{let s='';for(let i=a;i<b;i+=6)s+=`<rect x="${i}" y="${y-3}" width="3.6" height="3.4" fill="${c}"/>`;return s};
+function tower(cx,w,h,rf,st,hi,rh,snow){const a=cx-w/2,b=cx+w/2;return `<rect x="${a}" y="${-h}" width="${w}" height="${h+16}" fill="${st}"/><rect x="${cx}" y="${-h}" width="${w/2}" height="${h+16}" fill="#000" opacity=".22"/><rect x="${a-1.5}" y="${-h-2}" width="${w+3}" height="3" fill="${st}"/><polygon points="${a-3},${-h-2} ${cx},${-h-rh} ${b+3},${-h-2}" fill="${rf}"/><polygon points="${cx},${-h-rh} ${b+3},${-h-2} ${cx},${-h-2}" fill="#000" opacity=".25"/>${snow?`<polygon points="${cx-w*.22},${-h-rh*.55} ${cx},${-h-rh} ${cx+w*.22},${-h-rh*.55} ${cx+w*.08},${-h-rh*.7} ${cx-w*.08},${-h-rh*.62}" fill="#f8fafc"/>`:''}<rect x="${cx-1.2}" y="${-h+5}" width="2.4" height="5.5" fill="#fbbf24"/>`}
+function capital(c,x,y,sel){
+ const P={'북풍국':['#7b8aa0','#1d3a7a','#e2e8f0'],'서라국':['#cdb88e','#c98f10','#fde68a'],'남월국':['#73856a','#14532d','#bbf7d0']}[c],[st,rf,hi]=P,col=CO[c].hx,sn=c==='북풍국';
+ const bk=c==='북풍국'?`<polygon points="-64,16 -42,-12 -30,0 -8,-28 10,-4 30,-22 50,-2 66,16" fill="#64748b"/><polygon points="-8,-28 -15,-17 -9,-20 -4,-15 3,-21 10,-4 1,-14" fill="#f1f5f9"/><polygon points="30,-22 23,-12 29,-14 34,-9 40,-14 50,-2" fill="#f1f5f9" opacity=".9"/>`:c==='서라국'?`<ellipse cx="0" cy="17" rx="70" ry="9" fill="#d4a72c" opacity=".75"/><ellipse cx="-30" cy="20" rx="22" ry="4" fill="#a8851d" opacity=".5"/><ellipse cx="32" cy="20" rx="24" ry="4" fill="#a8851d" opacity=".5"/>`:`<polygon points="-66,16 -44,-18 -28,-4 -6,-34 14,-6 34,-26 66,16" fill="#3f5a3a"/><polygon points="-6,-34 14,-6 -2,-12 -12,-4" fill="#000" opacity=".22"/>`;
+ return `<g transform="translate(${x},${y-6}) scale(.98)"><ellipse cx="0" cy="17" rx="74" ry="7" fill="#000" opacity=".38"/>${bk}<circle r="46" cy="-8" fill="transparent"/>${sel?`<ellipse cx="0" cy="17" rx="76" ry="9" fill="none" stroke="#fff" stroke-width="2.4"/>`:''}`
+ +`<rect x="-46" y="0" width="92" height="16" fill="${st}"/><rect x="-46" y="9" width="92" height="7" fill="#000" opacity=".18"/>`+cren(-46,46,0,st)+`<path d="M-8,16V7A8,8 0 0 1 8,7V16Z" fill="#1c1917"/><path d="M-4,16V8M0,16V6M4,16V8" stroke="#78716c" stroke-width=".9"/>`
+ +tower(-40,13,26,rf,st,hi,15,sn)+tower(40,13,26,rf,st,hi,15,sn)+tower(-23,11,19,rf,st,hi,12,sn)+tower(23,11,19,rf,st,hi,12,sn)
+ +`<rect x="-18" y="-22" width="36" height="23" fill="${st}"/><rect x="0" y="-22" width="18" height="23" fill="#000" opacity=".2"/><polygon points="-23,-21 -16,-29 16,-29 23,-21" fill="${rf}"/><polygon points="0,-29 16,-29 23,-21 0,-21" fill="#000" opacity=".25"/><rect x="-11" y="-38" width="22" height="10" fill="${st}"/><rect x="0" y="-38" width="11" height="10" fill="#000" opacity=".2"/><polygon points="-16,-37 0,-53 16,-37" fill="${rf}"/><polygon points="0,-53 16,-37 0,-37" fill="#000" opacity=".25"/>${sn?`<polygon points="-6,-46 0,-53 6,-46 3,-47.5 0,-45 -3,-47.5" fill="#f8fafc"/>`:`<circle cx="0" cy="-54" r="1.8" fill="#fde047"/>`}`
+ +[-12,-4,4,-1].map((v,i)=>`<rect x="${v-1.5}" y="${i<3?-16:-35}" width="3" height="${i<3?6:5}" fill="#fbbf24"/>`).join('')
+ +flag(0,-53,15,col,c)+flag(-40,-41,13,col,c)+flag(40,-41,13,col,c)+`</g>`}
+function castle(v,x,y,col,own,sel){
+ const st=own?'#9a9084':'#7d776f',rf=own?col:'#8b8680',hi='#fff',gr=own?col:'#d6d3d1',m=(v===2||v===4)?`<polygon points="-34,15 -16,${v===4?-16:-6} -2,${v===4?-4:-2} 14,${v===4?-22:-10} 34,15" fill="${v===4?'#4b5563':'#57534e'}"/>`:'';
+ const tws=v===1?`<rect x="-26" y="-8" width="11" height="22" fill="${st}"/><ellipse cx="-20.5" cy="-8" rx="6.5" ry="5" fill="${rf}"/><rect x="15" y="-8" width="11" height="22" fill="${st}"/><ellipse cx="20.5" cy="-8" rx="6.5" ry="5" fill="${rf}"/>`:tower(-22,10,v===4?28:22,rf,st,hi,10)+tower(22,10,v===4?28:22,rf,st,hi,10);
+ const wall=v===3?`<rect x="-24" y="4" width="48" height="10" fill="#7c5a36"/>`+Array.from({length:9},(_,i)=>`<polygon points="${-24+i*5.4},4 ${-21.3+i*5.4},-3 ${-18.6+i*5.4},4" fill="#8b6a42"/>`).join('')+`<polygon points="-34,14 -26,2 -18,14" fill="#d6c7a1" stroke="#44403c" stroke-width=".6"/><polygon points="18,14 26,2 34,14" fill="#d6c7a1" stroke="#44403c" stroke-width=".6"/>`:`<rect x="-24" y="2" width="48" height="12" fill="${st}"/><rect x="-24" y="8" width="48" height="6" fill="#000" opacity=".18"/>`+cren(-24,24,2,st);
+ const kh=v===4?30:v===0?24:20;
+ return `<g transform="translate(${x},${y-2}) scale(.82)"><ellipse cx="0" cy="15" rx="34" ry="6" fill="#000" opacity=".4"/>${m}${sel?`<ellipse cx="0" cy="15" rx="37" ry="8" fill="none" stroke="#fff" stroke-width="2.6"/>`:''}${wall}${tws}<rect x="-9" y="${-kh}" width="18" height="${kh+14}" fill="${st}"/><rect x="0" y="${-kh}" width="9" height="${kh+14}" fill="#000" opacity=".2"/><polygon points="-12,${-kh} 0,${-kh-13} 12,${-kh}" fill="${rf}"/>${v===0?`<polygon points="-15,${-kh+6} 0,${-kh-3} 15,${-kh+6}" fill="${rf}" opacity=".9"/>`:''}<polygon points="0,${-kh-13} 12,${-kh} 0,${-kh}" fill="#000" opacity=".25"/><path d="M-4,14V8A4,4 0 0 1 4,8V14Z" fill="#1c1917"/><rect x="-1.5" y="${-kh+6}" width="3" height="5" fill="#fbbf24"/><line x1="0" y1="${-kh-13}" x2="0" y2="${-kh-25}" stroke="#d6d3d1" stroke-width="1.5"/><path d="M0,${-kh-25}h14l-4,5l4,5h-14z" fill="${gr}" stroke="#000" stroke-width=".5"><animate attributeName="d" dur="1.5s" repeatCount="indefinite" values="M0,${-kh-25}h14l-4,5l4,5h-14z;M0,${-kh-25}h12l-2,5l2,5h-12z;M0,${-kh-25}h14l-4,5l4,5h-14z"/></path></g>`}
+function mapHTML(){
+ let sd=11;const rn=()=>(sd=sd*16807%2147483647)/2147483647;
+ const sc=(cx,cy,rx,ry,n,f)=>Array.from({length:n},()=>{const a=rn()*6.283,r=Math.sqrt(rn());return [cx+Math.cos(a)*r*rx,cy+Math.sin(a)*r*ry]}).sort((a,b)=>a[1]-b[1]).map(([x,y])=>f(x,y)).join('');
+
+ const mt=(x,y,s,c)=>`<ellipse cx="${x+.3*s}" cy="${y+1}" rx="${1.1*s}" ry="${.25*s}" fill="#000" opacity=".25"/><polygon points="${x-s},${y} ${x-.1*s},${y-1.35*s} ${x+.15*s},${y-1.1*s} ${x+.5*s},${y-1.45*s} ${x+1.1*s},${y}" fill="${c}"/><polygon points="${x-.1*s},${y-1.35*s} ${x+.15*s},${y-1.1*s} ${x+.5*s},${y-1.45*s} ${x+1.1*s},${y} ${x+.25*s},${y}" fill="#000" opacity=".32"/><polygon points="${x-.1*s},${y-1.35*s} ${x-.38*s},${y-.9*s} ${x-.12*s},${y-.95*s} ${x+.05*s},${y-.8*s} ${x+.15*s},${y-1.1*s}" fill="#f8fafc" opacity=".95"/><polygon points="${x+.5*s},${y-1.45*s} ${x+.3*s},${y-1.05*s} ${x+.55*s},${y-1.1*s} ${x+.72*s},${y-.9*s}" fill="#f8fafc" opacity=".9"/>`;
+ const tree=(x,y,s,c)=>`<circle cx="${x}" cy="${y}" r="${s}" fill="${c}"/><circle cx="${x-.3*s}" cy="${y-.3*s}" r="${.5*s}" fill="#fff" opacity=".18"/>`;
+ const pine=(x,y,s,c)=>`<polygon points="${x-.55*s},${y} ${x},${y-1.7*s} ${x+.55*s},${y}" fill="${c}"/><polygon points="${x},${y-1.7*s} ${x+.55*s},${y} ${x+.1*s},${y}" fill="#000" opacity=".28"/>`;
+ const el=(x,y,rx,ry,c,o=1)=>`<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${c}" opacity="${o}"/>`;
+ const rv=(d,w)=>[['#1d4f7a',w+3],['#3b8fc4',w],['#8fd0f0',w/3]].map(([c,s])=>`<path d="${d}" stroke="${c}" stroke-width="${s}" fill="none" stroke-linecap="round"/>`).join('');
+ const ro=(d)=>`<path d="${d}" stroke="#efe2b8" stroke-width="1.8" stroke-dasharray="6 4" fill="none" opacity=".55"/>`;
+ const T=terrain(),SEA=[['북 해',400,34,0],['서 해',26,270,-90],['동 해',775,230,90],['남 해',400,508,0]].map(([t,x,y,r])=>`<text transform="translate(${x},${y}) rotate(${r})" text-anchor="middle" font-size="15" font-style="italic" letter-spacing="7" fill="#a9d3ee" opacity=".4">${t}</text>`).join('');
+ let g=`<defs><mask id="lm" maskUnits="userSpaceOnUse" x="0" y="0" width="800" height="520"><image href="${T.b}" width="800" height="520"/></mask><filter id="shd"><feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity=".6"/></filter><mask id="sm" maskUnits="userSpaceOnUse" x="0" y="0" width="800" height="520"><image href="${T.c}" width="800" height="520"/></mask><pattern id="wv" width="30" height="14" patternUnits="userSpaceOnUse"><path d="M0,7Q7.5,0 15,7T30,7" stroke="#cfeaff" stroke-opacity=".16" fill="none" stroke-width="1"/></pattern><radialGradient id="vg" cx=".5" cy=".5" r=".78"><stop offset=".62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></radialGradient></defs><image href="${T.a}" width="800" height="520"/><rect width="800" height="520" fill="url(#wv)" mask="url(#sm)" pointer-events="none"/><g mask="url(#lm)">`;
+ g+=rv('M585,140C540,190 480,200 420,240S330,330 280,385S150,470 90,535',5)+rv('M255,45C300,120 350,190 400,250',4)+rv('M560,385C540,430 500,470 480,540',4);
+ g+=[0,1,2,3,4].map(i=>[0,1,2,3].map(j=>`<rect x="${221+i*22}" y="${310+j*17}" width="20" height="15" fill="${['#9bb43a','#d6bc3e','#7fa23a','#c9a53a'][(i*3+j)%4]}" stroke="#4d5f1f" stroke-width=".6" transform="skewX(-6)"/>`).join('')).join('')+`<path d="M215,305L330,305" stroke="#5fb0e0" stroke-width="2"/>`;
+ {const it=[];for(let q=0;q<460;q++){const x=rn()*800,y=rn()*520,i=((y/2)|0)*400+((x/2)|0);if(T.ow[i]<0)continue;const h=T.hg[i],r=rn();
+  it.push([y,h>.62?mt(x,y,8+(h-.5)*26,r<.5?'#8d8579':'#a39a8d'):h>.5?mt(x,y,5+r*4,'#7d6b52'):y<150?pine(x,y,5+r*2.5,r<.5?'#1f4d45':'#2c5f52'):(r<.45?tree(x,y,3.4+r*3,'#3f6b35'):'')])}
+  g+=it.sort((a,b)=>a[0]-b[0]).map(v=>v[1]).join('')}
+ g+=ro('M170,115L400,250L140,410')+ro('M400,250L600,110')+ro('M400,250L690,265')+ro('M400,250L525,425L665,420')+ro('M690,265L665,420')+ro('M235,335L400,250');
+ g+=`</g>${SEA}<rect width="800" height="520" fill="url(#vg)" pointer-events="none"/><g transform="translate(22,24)" pointer-events="none"><rect width="132" height="30" rx="3" fill="#0b1b2d" fill-opacity=".82" stroke="#b08d57" stroke-width="1.5"/><text x="66" y="20" text-anchor="middle" fill="#e7d9b0" font-size="14" font-weight="bold" letter-spacing="5">大陸 全圖</text></g><rect x="3" y="3" width="794" height="514" rx="6" fill="none" stroke="#b08d57" stroke-width="3"/><rect x="9" y="9" width="782" height="502" rx="3" fill="none" stroke="#b08d57" stroke-width="1" opacity=".7"/>
+ <g transform="translate(52,466)"><circle r="27" fill="#0b1b2d" stroke="#b08d57" stroke-width="1.5"/><polygon points="0,-23 5,0 0,23 -5,0" fill="#e7d9b0"/><polygon points="-23,0 0,-5 23,0 0,5" fill="#8b7a55"/><polygon points="0,-23 5,0 -5,0" fill="#c0392b"/><text y="-30" text-anchor="middle" fill="#e7d9b0" font-size="11" font-weight="bold">N</text></g>
+ <g transform="translate(690,492)"><rect width="80" height="4" fill="#e7d9b0"/><rect width="40" height="4" fill="#0b1b2d" stroke="#e7d9b0" stroke-width=".6"/><text x="40" y="-3" text-anchor="middle" fill="#e7d9b0" font-size="9">대륙 지도</text></g>`;
+ const blob='M-90,-20C-100,-70 -40,-95 20,-85C80,-80 110,-30 95,20C85,70 30,90 -30,80C-80,70 -95,30 -90,-20Z';
+ const lab=(x,y,t,c,sz=11)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${sz}" font-weight="bold" fill="${c}" stroke="#000" stroke-width="3" paint-order="stroke">${t}</text>`;
+ Object.keys(CO).forEach(c=>{
+  if(c!==S.pc&&!S.nd[c].alive)return;
+  const d=c===S.pc?S.pd:S.nd[c],[x,y]=CAP[c],col=CO[c].hx,[wx,wy]=T.cen[c]||[x,y];
+  g+=`<text x="${wx}" y="${wy+52}" text-anchor="middle" font-size="30" font-weight="900" font-style="italic" letter-spacing="9" fill="#fff" opacity=".3" pointer-events="none">${c}</text><g style="cursor:pointer" onclick="S.ms='@${c}';R()">${capital(c,x,y,S.ms==='@'+c)}${lab(x,y+36,c+(c===S.pc?' (본국)':''),'#fff',13)}${lab(x,y+50,'영토 '+fmt(d.land)+' · 병력 '+fmt(tot(d.t)),'#e7e5e4',10)}</g>`;
+ });
+ Object.keys(SH).forEach(k=>{
+  const s=S.sh[k],o=s.owner,col=o?CO[o].hx:'#d6d3d1',[x,y]=SHP[k];
+  g+=(o?`<circle cx="${x}" cy="${y}" r="42" fill="${col}" fill-opacity=".3" stroke="${col}" stroke-width="2"/>`:'')+`<g style="cursor:pointer" onclick="S.ms='${k}';R()">${castle(CV[k],x,y,col,o,S.ms===k)}${lab(x,y+34,k,col)}${lab(x,y+47,(o||'중립')+' · 수비 '+fmt(tot(s.t)),'#e7e5e4',10)}</g>`;
+ });
+ g+=warLayer();const ms=S.ms,isC=ms&&ms[0]==='@',nm=isC?ms.slice(1):ms;let det='<p class="text-stone-500 text-sm">지도의 거점이나 나라를 눌러 자세한 정보를 확인하세요.</p>';
+ if(ms&&isC){const d=nm===S.pc?S.pd:S.nd[nm];det=`<b style="color:${CO[nm].hx}">${nm} 본성</b> <span class="text-xs text-stone-400">${CT[nm]}</span><div class="text-sm mt-1">영토 ${fmt(d.land)} · 본국 병력 ${fmt(tot(d.t))}명 [${tl(d.t)}]<br>보유 거점: ${own(nm).join(', ')||'없음'}</div>${nm!==S.pc&&S.nd[nm].alive&&S.al[S.pc]!==nm?`<button onclick="S.mp=0;pick('@${nm}')" class="mt-2 px-3 py-1 bg-red-800 rounded text-sm">공격 목표로 설정</button>`:''}`}
+ else if(ms){const s=S.sh[ms],o=s.owner;det=`<b style="color:${o?CO[o].hx:'#d6d3d1'}">${ms}</b> <span class="text-xs text-stone-400">(${o||'중립'})</span><div class="text-xs text-stone-400">${TR[ms]}</div><div class="text-xs whitespace-pre-line text-amber-200 mt-1">${SH[ms].desc}</div><div class="text-sm mt-1">${o?'수비병':'중립 병력'} ${fmt(tot(s.t))}명 [${tl(s.t)}]</div>${o===S.pc?`<button onclick="S.mp=0;S.gs='${ms}';tab('gar')" class="mt-2 px-3 py-1 bg-amber-800 rounded text-sm">수비병력 배치</button>`:`<button onclick="S.mp=0;pick('${ms}')" class="mt-2 px-3 py-1 bg-red-800 rounded text-sm">공격 목표로 설정</button>`}`}
+ return `<div class="fixed inset-0 bg-black/85 z-40 overflow-y-auto p-3"><div class="max-w-5xl mx-auto bg-stone-900 border-2 border-emerald-700 rounded-xl p-3"><div class="flex justify-between items-center mb-2"><h2 class="font-bold text-emerald-400 text-lg">🗺 대륙 지도</h2><button onclick="S.mp=0;R()" class="px-3 py-1 bg-stone-700 hover:bg-stone-600 rounded">닫기 ✕</button></div><div class="rounded-lg overflow-hidden"><svg viewBox="0 0 800 520" class="w-full rounded-lg border border-stone-700">${g}</svg></div><div class="flex flex-wrap gap-2 items-center mt-2"><span class="text-xs text-stone-400">🔥 최근 전투 · 점선 화살표 = 최근 2턴의 진군 · 큰 성채 = 각국 본성 · 작은 성 = 전략 거점 (깃발 색 = 소유국, 회색 = 중립)</span></div><div class="grid sm:grid-cols-2 gap-3 mt-2"><div class="bg-stone-950 rounded p-2 min-h-[5rem]">${det}</div><div class="text-xs text-stone-400">${Object.keys(CO).map(c=>`<span style="color:${CO[c].hx}">●</span> ${c}: ${CT[c]}`).join('<br>')}<br>색 영역 = 나라 영토 (영토가 클수록 넓게 차지, 점선 = 국경) · 색 원 = 점령한 거점</div></div></div></div>`;
+}
+function garHTML(){
+ const hs=own(S.pc);
+ if(!hs.length)return '<p class="text-stone-500 text-center text-sm py-6">점령한 거점이 없습니다. 거점을 점령하면 이곳에서 수비병력을 배치합니다.</p>';
+ if(!hs.includes(S.gs))S.gs=hs[0];
+ const g=S.sh[S.gs].t;
+ return `${S.hold?'<div class="bg-amber-900/40 border border-amber-600 p-2 rounded text-sm mb-2">🚩 거점을 점령했습니다! 수비병력을 배치한 뒤 [배치 완료]를 누르면 턴이 종료됩니다.</div>':''}<div class="text-xs text-stone-400 mb-2">수비병은 해당 거점만 지키며 출진·본성 방어에 쓸 수 없습니다. 배치와 철수는 턴을 소모하지 않으며, 수비병의 군량 소모는 본국 병력의 절반입니다.</div><select class="w-full mb-2 text-sm" onchange="S.gs=this.value;R()">${hs.map(h=>`<option value="${h}" ${h===S.gs?'selected':''}>${h} (수비병 ${fmt(tot(S.sh[h].t))})</option>`).join('')}</select><div class="space-y-1">${K.map(k=>`<div class="flex justify-between items-center text-sm bg-stone-900 p-2 rounded"><div class="w-32">${UN[k].n}<span class="text-[10px] text-stone-500 block">본국 ${fmt(S.pd.t[k])} / 수비 ${fmt(g[k])}</span></div><div class="flex gap-1"><button onclick="gmod('${k}',-500)" class="px-2 py-1 bg-stone-800 hover:bg-stone-700 rounded">철수 500</button><button onclick="gmod('${k}',500)" class="px-2 py-1 bg-stone-800 hover:bg-stone-700 rounded">배치 500</button></div></div>`).join('')}</div><div class="flex gap-2 mt-2"><button onclick="gall(1)" class="flex-1 text-xs bg-stone-700 py-1 rounded">본국 전원 배치</button><button onclick="gall(0)" class="flex-1 text-xs bg-stone-700 py-1 rounded">전원 철수</button></div>${S.hold?'<button onclick="endGar()" class="w-full mt-3 py-2 bg-amber-700 hover:bg-amber-600 font-bold rounded">배치 완료 (턴 종료)</button>':''}`;
+}
+const dpm=()=>S.dp&&!S.ev?`<div class="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"><div class="bg-stone-900 border-2 border-purple-700 rounded-xl p-5 max-w-md w-full"><h2 class="text-xl font-bold text-purple-300 mb-2">${S.dp.type==='ally'?'동맹 제의':'조공 요구'} <span style="color:${CO[S.dp.from].hx}">· ${S.dp.from}</span></h2><p class="mb-3 text-sm">${S.dp.type==='ally'?'불가침 동맹을 제안합니다. 수락하면 서로 공격하지 않고 적대감이 크게 줄어듭니다.':'금화 3,000과 군량 2,000을 바치라고 요구합니다. 거부하면 적대감이 +25 오르고 침공 확률이 높아집니다.'}</p><div class="flex gap-2"><button onclick="ansDp(1)" ${S.dp.type==='trib'&&(S.pd.gold<3000||S.pd.food<2000)?'disabled':''} class="flex-1 py-2 bg-purple-800 hover:bg-purple-700 rounded font-bold">수락</button><button onclick="ansDp(0)" class="flex-1 py-2 bg-stone-700 hover:bg-stone-600 rounded font-bold">거절</button></div></div></div>`:'';
+const rows=(key,lim,cost)=>K.map(k=>`<div class="flex justify-between items-center text-sm bg-stone-900 p-2 rounded"><div class="w-28">${cost?`<span class="text-amber-600 font-bold">[${UN[k].c}원]</span> `:''}${UN[k].n}${lim?`<span class="text-[10px] text-stone-500 block">보유 ${fmt(lim[k])}</span>`:''}</div><div class="flex items-center gap-1"><button onclick="mod('${key}','${k}',-500)" class="px-2 py-1 bg-stone-800 hover:bg-stone-700 rounded">-500</button><b class="w-14 text-center">${fmt(S[key][k])}</b><button onclick="mod('${key}','${k}',500)" class="px-2 py-1 bg-stone-800 hover:bg-stone-700 rounded">+500</button></div></div>`).join('');
+
+function trpHTML(){
+ if(!S||!S.trp)return '';
+ const rt=S.trp,evs=S.logs.filter(l=>l.t===rt&&l.title!=='턴 종료 현황').slice().reverse();
+ const wc=w=>CO[w]?CO[w].hx:'#a8a29e';
+ const totL=S.pd.land+alive().reduce((s,n)=>s+S.nd[n].land,0)||1;
+ const cards=Object.keys(CO).map(c=>{
+  const isMe=c===S.pc,d=isMe?S.pd:S.nd[c],al=isMe||d.alive;
+  const pct=al?Math.round(d.land/totL*100):0;
+  return `<div class="bg-stone-950/90 border ${isMe?'border-amber-600/70':'border-stone-800'} rounded-xl p-3 text-xs"><div class="flex justify-between items-center font-bold text-sm mb-1 ${CO[c].cl}"><span>${c}${isMe?' (나)':''}</span><span>${!al?'<span class="text-stone-500 text-xs">멸망</span>':S.al[S.pc]===c?'<span class="text-[11px] bg-blue-900 text-blue-200 px-1.5 py-0.5 rounded">동맹</span>':(!isMe&&S.coalition)?'<span class="text-[11px] bg-red-950 text-red-300 px-1.5 py-0.5 rounded">반패권</span>':''}</span></div>${al?`<div class="space-y-1 text-stone-300"><div class="flex justify-between"><span class="text-stone-400">영토</span><b>${fmt(d.land)} km² (${pct}%)</b></div><div class="flex justify-between"><span class="text-stone-400">본국 / 수비병</span><b>${fmt(tot(d.t))} / ${fmt(gar(c))}명</b></div>${isMe?`<div class="flex justify-between"><span class="text-stone-400">금화 · 군량 · 민심</span><b class="text-amber-300">${fmt(d.gold)} · ${fmt(d.food)} · ${d.min}</b></div>`:`<div class="flex justify-between"><span class="text-stone-400">적대감 · 침공위험</span><b class="text-red-300">${Math.floor(S.ten[c])} · ${S.coalition?'협공':Math.round(invChance(c)*100)+'%'}</b></div>`}<div class="text-[11px] text-stone-400 pt-1 border-t border-stone-800/80 truncate">거점: ${own(c).join(', ')||'없음'}</div></div>`:'<div class="text-stone-500 py-4 text-center">영토가 소멸하여 멸망했습니다.</div>'}</div>`;
+ }).join('');
+ const evList=evs.map(l=>`<div class="border-l-4 p-2.5 rounded-r bg-stone-950/80 ${LS[l.ty]}"><div class="font-bold text-sm"><span class="text-[11px] px-1.5 py-0.5 rounded mr-1.5 align-middle" style="background:${wc(l.who)}33;color:${wc(l.who)}">${l.who}${l.who===S.pc?' (나)':''}</span>${l.title}</div><div class="text-[11px] text-stone-400 mb-0.5">${rp(l)}</div><div class="whitespace-pre-line text-xs sm:text-sm leading-relaxed text-stone-200">${l.desc}</div></div>`).join('')||'<p class="text-stone-500 text-sm text-center py-4">특이 사항이 없었습니다.</p>';
+ return `<div class="fixed inset-0 bg-black/85 z-[58] flex items-center justify-center p-3 overflow-y-auto"><div class="bg-stone-900 border-2 border-amber-600/90 rounded-2xl p-4 sm:p-5 w-full max-w-3xl my-auto shadow-2xl fadein"><div class="flex justify-between items-center border-b border-stone-700 pb-3 mb-3"><div><h2 class="text-xl sm:text-2xl font-black text-amber-400">📜 제 ${rt} 턴 전황 보고서</h2><p class="text-xs text-stone-400 mt-0.5">${CH[CO[S.pc].adv].i} 책사 ${CO[S.pc].adv} · ${CH[CO[S.pc].gen].i} 대장군 ${CO[S.pc].gen}의 턴 결산 보고</p></div><button onclick="S.trp=null;R()" class="px-3 py-1 bg-stone-800 hover:bg-stone-700 rounded text-sm">닫기 ✕</button></div><div class="mb-3"><div class="text-xs font-bold text-amber-300 mb-1.5">🚩 천하 삼국 국력 현황</div><div class="grid sm:grid-cols-3 gap-2">${cards}</div></div><div class="mb-4"><div class="text-xs font-bold text-amber-300 mb-1.5">📋 제 ${rt} 턴 주요 사건 및 각국 동향 (${evs.length}건)</div><div class="max-h-64 sm:max-h-72 overflow-y-auto space-y-2 pr-1">${evList}</div></div><button onclick="S.trp=null;R()" class="w-full py-3 bg-amber-700 hover:bg-amber-600 rounded-xl font-black text-base sm:text-lg transition">다음 턴으로 (제 ${S.turn} 턴) ▶</button></div></div>`;
+}
+function cfgHTML(){
+ const m=saveMeta();
+ return `<div class="fixed inset-0 bg-black/85 z-[65] flex items-center justify-center p-3 overflow-y-auto"><div class="bg-stone-900 border-2 border-amber-700/80 rounded-2xl p-5 w-full max-w-lg my-auto"><div class="flex justify-between items-center border-b border-stone-700 pb-3 mb-4"><h2 class="text-xl font-bold text-amber-400">⚙️ 게임 설정 및 관리</h2><button onclick="S.cfg=0;R()" class="px-3 py-1 bg-stone-700 hover:bg-stone-600 rounded text-sm">닫기 ✕</button></div><div class="bg-stone-950/80 border border-stone-800 rounded-lg p-3 mb-4 text-xs text-stone-300 space-y-1"><div class="flex justify-between"><span>통치 국가 · 난이도</span><b class="text-amber-300">${S.pc} · ${DF[S.df].n}</b></div><div class="flex justify-between"><span>현재 진행 턴</span><b>제 ${S.turn} 턴</b></div><div class="flex justify-between"><span>저장 상태</span><span class="text-stone-400">${m?'제 '+m.turn+'턴 ('+m.pc+') 저장됨':'저장본 없음 (수동 저장 필요)'}</span></div></div><div class="space-y-2 mb-4"><button onclick="saveG(1)" class="w-full py-2.5 px-4 bg-sky-800 hover:bg-sky-700 rounded-lg font-bold text-sm flex justify-between items-center"><span>💾 현재 상태 저장</span><span class="text-xs font-normal text-sky-200">브라우저에 현재 턴 덮어쓰기</span></button><div class="grid grid-cols-2 gap-2"><button onclick="if(confirm('저장된 기록을 불러올까요? 현재 진행 중인 내용은 덮어씌워집니다.')){S.cfg=0;loadG()}" ${hasSave()?'':'disabled'} class="py-2 px-3 bg-emerald-800 hover:bg-emerald-700 rounded-lg font-bold text-sm">📂 저장본 불러오기</button><button onclick="askDel()" ${hasSave()?'':'disabled'} class="py-2 px-3 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg text-sm">🗑 저장 기록 삭제</button></div><div class="grid grid-cols-2 gap-2"><button onclick="S.cfg=0;undo()" ${S.un?'':'disabled'} class="py-2 px-3 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg text-sm">↩ 직전 행동 되돌리기</button><button onclick="MUTE=!MUTE;R()" class="py-2 px-3 bg-stone-800 hover:bg-stone-700 border border-stone-700 rounded-lg text-sm">${MUTE?'🔇 효과음: 꺼짐':'🔊 효과음: 켜짐'}</button></div></div><details class="bg-stone-950/70 border border-stone-800 rounded-lg p-3 mb-4 text-xs text-stone-300"><summary class="cursor-pointer font-bold text-amber-400">📖 전투·상성 및 통치 규칙 요약</summary><ul class="list-disc pl-4 mt-2 space-y-1 text-stone-400"><li>전투는 최대 4합으로 진행되며, 제2합 종료 후 전술 개입 지휘를 내릴 수 있습니다.</li><li>병종 상성: 창병▶기마병, 방패병▶궁병, 기마병▶궁병(약), 궁병▶보병, 보병▶방패병·창병(약).</li><li>군량 유지비는 병력의 6%(거점 수비병은 절반)이며, 고갈 시 민심이 매 턴 -10 하락합니다.</li><li>영토가 천하의 60%를 넘어가면 나머지 두 국가가 반패권 동맹을 맺어 협공합니다.</li></ul></details><button onclick="if(confirm('저장하지 않은 진행은 사라집니다. 시작 화면으로 돌아갈까요?')){S=null;R()}" class="w-full py-2 bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-200 rounded-lg text-sm font-bold">🏠 시작 화면으로 돌아가기</button></div></div>`;
+}
+function R(){
+ const root=$('r');
+ if(!S){
+  root.innerHTML=`<div class="min-h-screen flex flex-col items-center justify-center p-6"><h1 class="text-4xl sm:text-6xl text-amber-500 font-bold mb-2">천하삼분지계</h1><p class="text-stone-400 mb-4 text-center">상대 두 나라의 영토를 모두 0으로 만들거나, 내정을 극에 달해 경제 승리하면 승리합니다</p><div class="flex gap-2 mb-4">${Object.keys(DF).map(k=>`<button onclick="DFK='${k}';R()" class="px-4 py-1 rounded border ${DFK===k?'bg-amber-700 border-amber-500':'border-stone-600 text-stone-400'}">${DF[k].n}</button>`).join('')}</div>${hasSave()?`<button onclick="loadG()" class="mb-2 px-6 py-2 bg-emerald-800 hover:bg-emerald-700 rounded">이어하기${saveMeta()?' (제 '+saveMeta().turn+'턴 · '+saveMeta().pc+')':''}</button><button onclick="delSave()" class="mb-4 text-xs text-stone-500 hover:text-stone-300 underline">저장 취소(기록 삭제)</button>`:''}<details class="max-w-xl mb-6 text-sm text-stone-300 bg-stone-900/70 p-3 rounded"><summary class="cursor-pointer text-amber-400 font-bold">📖 처음 하는 분을 위한 안내</summary><ul class="list-disc pl-5 mt-2 space-y-1"><li>턴마다 내정·군사·외교 중 하나를 고릅니다. 징집은 턴당 1회, 턴을 소모하지 않습니다.</li><li>전투력 = 병종 능력치 × 병력. 전투는 최대 4합으로 진행되며, 제2합 종료 후 플레이어가 전술 개입 지휘를 내릴 수 있습니다.</li><li>정벌은 군량을 많이 씁니다(병력×0.9+원정 거리), 가뭄·역병 같은 재해와 반란이 일어날 수 있습니다.</li><li>상성: 창병▶기마병, 방패병▶궁병, 기마병▶궁병, 궁병▶보병, 보병▶방패병·창병(약).</li><li>군량 유지비는 병력의 6%. 군량이 0이면 민심이 턴마다 -10, 민심 0이면 반란으로 패배합니다.</li><li>영토가 전체의 60%를 넘어서면 나머지 두 나라가 반패권 동맹을 결성해 동시에 협공합니다.</li><li>상단 우측의 [⚙️ 설정] 버튼에서 저장, 불러오기, 되돌리기, 효과음을 관리할 수 있습니다.</li></ul></details><div class="flex flex-wrap gap-5 justify-center">${Object.keys(CO).map(k=>{const c=CO[k];return `<div onclick="start('${k}')" class="bg-stone-900/80 border-2 ${c.bd} p-5 rounded-xl w-72 text-center cursor-pointer hover:scale-105 transition">${crest(k)}<h2 class="text-2xl font-bold mb-2 ${c.cl}">${k}</h2><p class="text-stone-300 mb-3 text-sm">${c.desc}</p><p class="text-xs text-amber-300 mb-2">${c.ps}</p><div class="text-xs bg-stone-950 p-2 rounded text-stone-400">대장군 ${c.gen} · 책사 ${c.adv}<br>금화 ${fmt(c.i.gold)} · 군량 ${fmt(c.i.food)} · 민심 ${c.i.min}</div></div>`}).join('')}</div></div>`;
+  return;
+ }
+ if(S.sv!==undefined&&S.sv<storyOf(S.pc).length){root.innerHTML=storyHTML();return}
+ const p=S.pd,T=S.nd,me=CO[S.pc],troopsOf=c=>c===S.pc?p.t:T[c].t;
+ const upk=Math.floor((tot(p.t)+gar(S.pc)*.5)*UPK),fc=upk?Math.floor(p.food/upk):99,low=fc<3,lowM=p.min<=30;
+ const groups=[];S.logs.forEach(l=>{let g=groups[groups.length-1];if(!g||g.t!==l.t){g={t:l.t,ev:[]};groups.push(g)}g.ev.push(l)});
+ const wc=w=>CO[w]?CO[w].hx:'#a8a29e';
+ const lg=groups.slice(0,S.al2?999:12).map((g,i)=>`<div class="mb-3 ${i?'opacity-80':''}"><div class="flex items-center gap-2 mb-1"><div class="h-px bg-amber-800 flex-1"></div><span class="text-amber-400 font-bold">제 ${g.t} 턴 ${i?'':'· 최신 보고'}</span><div class="h-px bg-amber-800 flex-1"></div></div>${g.ev.slice().reverse().map(l=>`<div class="border-l-4 p-2 rounded-r bg-stone-950/60 mb-1.5 ${LS[l.ty]}"><div class="font-bold"><span class="text-[11px] px-1.5 py-0.5 rounded mr-1.5 align-middle" style="background:${wc(l.who)}33;color:${wc(l.who)}">${l.who}${l.who===S.pc?' (나)':''}</span>${l.title}</div><div class="text-[11px] text-stone-400 mb-0.5">${rp(l)}</div><div class="whitespace-pre-line text-sm leading-relaxed">${l.desc}</div></div>`).join('')}</div>`).join('');
+ const rivals=Object.keys(T).map(n=>{const e=T[n];return `<div class="bg-stone-950/50 p-2 rounded border border-stone-800 text-sm"><div class="font-bold flex justify-between ${CO[n].cl}"><span>${n} ${e.alive?'':'<span class="text-xs text-stone-500">(멸망)</span>'}${S.al[S.pc]===n?'<span class="text-xs bg-blue-900 text-blue-200 px-1 rounded ml-1">동맹</span>':''}${e.alive&&S.coalition?'<span class="text-xs bg-red-950 border border-red-700 text-red-300 px-1 rounded ml-1">반패권 동맹</span>':''}</span>${e.alive&&S.ten[n]>=50?'<span class="text-xs bg-red-900 text-red-200 px-1 rounded">분노</span>':''}</div>${e.alive?`<div class="text-xs text-stone-400">병력 ${fmt(tot(e.t))} · 영토 ${fmt(e.land)}<br>방어 전투력 ${fmt(calc(n,e.t,true,null))} · 거점 수비병 ${fmt(gar(n))}<br>나에 대한 침공 확률 <b class="text-red-300">${S.coalition?'협공 대기':Math.round(invChance(n)*100)+'%'}</b></div><div class="h-1.5 bg-stone-800 rounded mt-1"><div class="h-1.5 rounded bg-red-600" style="width:${Math.min(100,S.ten[n])}%"></div></div><div class="text-[10px] text-stone-400">${CH[CO[n].gen].i} ${CO[n].gen} · ${CH[CO[n].adv].i} ${CO[n].adv}</div><div class="text-[10px] text-stone-500">적대감 ${Math.floor(S.ten[n])} · 거점: ${own(n).join(', ')||'없음'}</div>`:''}</div>`}).join('');
+ let prev='',wpv=null;
+ if(S.tg&&tot(S.so)){
+  const isN=S.tg[0]==='@',nm=isN?S.tg.slice(1):S.tg,ow=isN?nm:S.sh[nm].owner,tt=isN?T[nm].t:S.sh[nm].t;
+  const a=calc(S.pc,S.so,false,null)*cb(S.so,tt)*mor(),d=calc(ow,tt,true,isN?null:nm)*cb(tt,S.so);wpv=winP(S.pc,S.so,ow,tt,isN?null:nm,mor(),1);
+  prev=`<div class="text-xs mt-2 bg-stone-950 p-2 rounded">아군 공격력 <b class="text-red-300">${fmt(a)}</b> vs 적 방어력 <b class="text-blue-300">${fmt(d)}</b> (전력비 ${(a/(d||1)).toFixed(2)})<br>⚔ 전투력이 같으면 승률 50%, 차이가 클수록 높아집니다 · <b class="text-amber-300">예상 승률 ${wpv}%</b> (전투력 비가 클수록 승률이 가파르게 올라갑니다)</div>`;
+ }
+ const opts=`<optgroup label="[상대 본성]">${alive().filter(n=>S.al[S.pc]!==n).map(n=>`<option value="@${n}" ${S.tg==='@'+n?'selected':''}>${n} (병력 ${fmt(tot(T[n].t))})</option>`).join('')}</optgroup><optgroup label="[전략 거점]">${Object.keys(SH).filter(h=>S.sh[h].owner!==S.pc).map(h=>{const o=S.sh[h].owner;return `<option value="${h}" ${S.tg===h?'selected':''}>${h} ${o?'(소유 '+o+' · 수비병 '+fmt(tot(S.sh[h].t))+')':'(중립 · 병력 '+fmt(tot(S.sh[h].t))+')'}</option>`}).join('')}</optgroup>`;
+ let body='';
+ if(S.tab==='in')body=say('a')+`<div class="text-center space-y-4 py-4"><div class="text-5xl">📜</div><p class="text-amber-200 font-bold">백성을 다독이고 국고를 채우시겠습니까?</p><p class="text-xs text-stone-400">민심과 영토, 보유 거점에 비례해 금화와 군량을 얻고 민심이 +8 오릅니다. 치국안민 소득은 내정할 때 들어오고, 농업·상업 개발은 매 턴 추가 수입을 줍니다.</p><button onclick="internal()" class="w-3/4 py-3 bg-amber-700 hover:bg-amber-600 font-black rounded-lg">치국안민 반포</button>${Object.keys(IV).map(k=>`<button onclick="invest('${k}')" ${S.inv[k]>=5?'disabled':''} class="w-3/4 py-2 bg-stone-800 hover:bg-stone-700 rounded-lg text-sm">${IV[k][0]} ${S.inv[k]}/5 · ${IV[k][1]} <span class="text-amber-500">(${S.inv[k]>=5?'최대':fmt(ivCost(k))+'금'})</span></button>`).join('')}<button onclick="bless()" class="w-3/4 py-2 bg-stone-800 hover:bg-stone-700 rounded-lg text-sm">민심 하사 · 민심 +10 <span class="text-amber-500">(5,000금)</span></button></div>`;
+ else if(S.tab==='mil')body=say('g',wpv)+`<div class="bg-stone-950/60 p-3 rounded-lg border border-stone-700 mb-3"><h4 class="font-bold text-amber-500 mb-2 flex justify-between"><span>병영 (징집 · 턴 소모 없음, 턴당 1회)</span><span class="text-xs text-stone-400">금화 ${fmt(p.gold)}</span></h4><div class="space-y-1">${rows('dr',null,true)}</div><div class="flex justify-between items-center mt-3"><span class="text-sm text-amber-400 font-bold">소모 금화 ${fmt(draftCost())}</span><button onclick="draft()" class="px-5 py-2 bg-amber-700 hover:bg-amber-600 rounded font-bold">${S.dd?'징집 완료':'징집 명령'}</button></div></div>
+ <div class="bg-red-950/20 p-3 rounded-lg border border-red-900/30"><h4 class="font-bold text-red-400 mb-2 flex justify-between"><span>군사 행동 (정벌)</span><span class="text-xs text-stone-400">군량 ${fmt(p.food)}</span></h4><select class="w-full mb-3 text-sm" onchange="S.tg=this.value;R()"><option value="">-- 공격 목표 선택 --</option>${opts}</select><div class="space-y-1">${rows('so',p.t,false)}</div>${prev}<div class="flex justify-between items-center mt-3"><button onclick="all('so')" class="text-xs bg-stone-700 px-3 py-1 rounded hover:bg-stone-600">전원 출격</button><div class="text-right"><div class="text-xs text-stone-400">출진 군량(원정 거리 포함) ${fmt(S.tg?atkCost(tot(S.so),S.tg[0]==='@'?S.tg.slice(1):S.tg):Math.floor(tot(S.so)*AF))}</div><button onclick="sortie()" class="mt-1 px-8 py-2 bg-red-800 hover:bg-red-700 font-bold rounded">출진!</button></div></div></div>`;
+ else if(S.tab==='gar')body=garHTML();else body=say('a')+(alive().map(n=>{const a=S.al[S.pc]===n;return `<div class="bg-stone-900/60 p-3 rounded-lg border border-stone-700 mb-2"><div class="font-bold mb-2 ${CO[n].cl}">${n}${a?' <span class="text-xs bg-blue-900 text-blue-100 px-2 py-0.5 rounded">불가침 동맹</span>':''}${S.coalition?' <span class="text-xs bg-red-950 text-red-300 px-2 py-0.5 rounded">반패권 동맹</span>':''}</div><div class="grid grid-cols-2 gap-2 text-sm">${a?`<button onclick="dip('break','${n}')" class="bg-red-950 border border-red-900 text-red-300 p-2 rounded">동맹 파기</button>`:`<button onclick="dip('ally','${n}')" ${S.al[S.pc]||S.coalition?'disabled':''} class="bg-blue-950 border border-blue-900 text-blue-300 p-2 rounded">동맹 제의</button>`}<button onclick="dip('tribute','${n}')" class="bg-amber-950 border border-amber-900 text-amber-300 p-2 rounded">조공 요구</button><button onclick="dip('spy','${n}')" class="col-span-2 bg-purple-950 border border-purple-900 text-purple-300 p-2 rounded">책사 파견 <span class="text-xs opacity-70">${S.pc==='북풍국'?'(적 금화 강탈)':S.pc==='서라국'?'(민심 선동)':'(적 군량 가로채기)'}</span></button></div></div>`}).join('')||'<p class="text-stone-500 text-center">남은 적국이 없습니다.</p>');
+ const tabs={in:'내정',mil:'군사',dip:'외교',gar:'주둔'};
+ const ev=S.ev?`<div class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-3 overflow-y-auto"><div class="bg-stone-900 border-2 border-red-700 p-5 rounded-2xl w-full max-w-lg my-auto"><h2 class="text-2xl text-red-500 font-bold text-center mb-1">긴급 전갈: 적군 침공!</h2><p class="text-center text-stone-300 mb-3"><b class="${CO[S.ev.from].cl}">${S.ev.from}</b>(대장군 ${CO[S.ev.from].gen})의 대군이 본성 앞까지 진군했습니다.</p><div class="flex gap-2 items-start bg-stone-950 p-2 rounded text-sm mb-3"><div class="text-2xl">${CH[CO[S.pc].gen].i}</div><div><b>${CO[S.pc].gen}</b> <span class="text-xs text-stone-400">대장군</span><div>“폐하, 적의 선봉이 성문 앞에 당도했습니다. 병력을 편성해 주십시오!”</div></div></div><div class="bg-stone-950 p-3 rounded mb-3 border border-red-900/50 text-sm flex justify-between"><div><div class="text-red-400 font-bold mb-1">[적군 부대]</div>${tl(S.ev.t)}</div><div class="text-right"><div class="text-xs text-stone-500">적 공격력</div><div class="text-xl text-red-500 font-black">${fmt(calc(S.ev.from,S.ev.t,false,null)*cb(S.ev.t,S.dc))}</div></div></div><h3 class="font-bold text-blue-400 mb-2 flex justify-between"><span>방어군 편성</span><span class="text-xs text-stone-400">군량 ${fmt(p.food)}</span></h3><div class="space-y-1 mb-3">${rows('dc',p.t,false)}</div><div class="flex justify-between items-center mb-3 bg-stone-950 p-2 rounded"><button onclick="all('dc')" class="text-xs bg-stone-700 px-3 py-2 rounded hover:bg-stone-600">전원 방어 투입</button><div class="text-right text-xs"><div class="text-stone-400">군량 소모 ${fmt(tot(S.dc)*FC*(hasSh('서라 대곡창')?.9:1))}</div><div class="text-sm font-bold text-blue-400">내 방어력 ${fmt(calc(S.pc,S.dc,true,null)*cb(S.dc,S.ev.t)*mor())}</div><div class="text-xs text-amber-300">수성 성공 확률 ${tot(S.dc)?100-winP(S.ev.from,S.ev.t,S.pc,S.dc,null,1,mor()):0}%</div></div></div>${S.m?`<p class="text-red-400 text-sm mb-2">${S.m}</p>`:''}<button onclick="defend()" class="w-full py-3 bg-red-800 hover:bg-red-700 font-black rounded-lg text-lg">성문 사수 명령!</button><button onclick="S.dc=z();defend()" class="w-full mt-2 py-2 bg-stone-700 hover:bg-stone-600 rounded text-sm">방어 포기 (병력 투입 없이 패배 수용)</button></div></div>`:'';
+ const end=S.end?`<div class="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] p-4"><div class="text-center"><h1 class="text-6xl font-bold mb-4 ${S.end.w?'text-amber-400':'text-red-500'}">${S.end.w?'천하통일':'국가 멸망'}</h1><p class="mb-3 text-stone-300">${S.end.m}</p><div class="text-sm text-stone-400 mb-3">제 ${S.turn} 턴 · 승전 ${S.st.bw} · 패전 ${S.st.bl} · 적 전사 ${fmt(S.st.kl)} · 아군 전사 ${fmt(S.st.ls)} · 영토 ${fmt(S.pd.land)}<br>점수 <b class="text-amber-400">${fmt(S.end.sc)}</b> (최고 ${fmt(S.end.best)}) · 난이도 ${DF[S.df].n}</div>${S.end.ach.length?`<div class="text-amber-300 text-sm mb-5">🏅 ${S.end.ach.join(' · ')}</div>`:'<div class="mb-5"></div>'}<button onclick="S=null;R()" class="px-8 py-3 bg-amber-800 hover:bg-amber-700 rounded">다시 시작</button></div></div>`:'';
+ root.innerHTML=`<div class="max-w-7xl mx-auto p-3">
+ <div class="bg-stone-900 border border-amber-900/50 rounded-lg px-4 py-2.5 mb-3 flex flex-wrap gap-x-4 gap-y-2 justify-between items-center font-bold"><div class="flex flex-wrap items-center gap-x-5 gap-y-1"><span class="text-amber-400">💰 ${fmt(p.gold)}</span><span class="${low?'text-red-500 animate-pulse':'text-green-400'}">🌾 ${fmt(p.food)} <span class="text-xs font-normal text-stone-400">(${fc>=99?'충분':fc+'턴분'})</span></span><span class="${lowM?'text-red-500 animate-pulse':'text-blue-400'}">👥 민심 ${p.min}</span><span class="text-purple-400">🚩 ${fmt(p.land)} km²</span>${S.coalition?'<span class="text-xs bg-red-950 border border-red-700 text-red-300 px-2 py-0.5 rounded">⚔ 반패권 동맹 견제</span>':''}</div><div class="flex items-center gap-2.5"><button onclick="S.mp=1;S.ms='';R()" class="px-3 py-1.5 rounded bg-emerald-800 hover:bg-emerald-700 text-sm">🗺 지도</button><button onclick="S.cfg=1;R()" class="px-3 py-1.5 rounded bg-stone-800 hover:bg-stone-700 border border-stone-600 text-sm">⚙️ 설정</button><span class="text-amber-500 text-lg sm:text-xl pl-1">제 ${S.turn} 턴</span></div></div>
+ ${fc<3?`<div class="bg-red-950 border border-red-700 text-red-200 rounded-lg px-3 py-2 mb-3 text-sm font-bold">⚠ 군량이 ${fc}턴 안에 바닥납니다! 바닥나면 민심이 턴마다 -10 떨어집니다. 농업 개발·내정·거점 점령으로 대비하십시오.</div>`:''}<div class="bg-stone-900 border-2 border-amber-600/70 rounded-xl p-3 mb-3 shadow-lg shadow-amber-900/30"><h3 class="text-amber-400 font-black text-lg text-center mb-2">📜 사관의 전황 기록실 <span class="text-xs font-normal text-stone-400">(내 행동 · 적국 행동 · 전투 손실 · 턴 종료 현황)</span></h3><div class="text-center mb-2"><button onclick="S.al2=!S.al2;R()" class="text-xs px-3 py-1 bg-stone-700 rounded">${S.al2?'최근 12턴만 보기':'전체 기록 보기'}</button></div><div class="max-h-[26rem] overflow-y-auto pr-1">${lg}</div></div>
+ <div class="grid lg:grid-cols-[1fr_1.2fr] gap-3">
+ <div class="order-3 lg:order-1 space-y-3"><div class="bg-stone-900/80 p-3 rounded-xl border border-stone-700"><h3 class="text-xl font-bold ${me.cl} border-b border-stone-700 pb-1 mb-2">${S.pc} (본국)</h3><div class="text-sm space-y-1"><p class="flex justify-between"><span>본국 병력 <span class="text-[10px] text-stone-500">(출진·방어 가능)</span></span><b>${fmt(tot(p.t))}명</b></p><p class="flex justify-between"><span>거점 수비병 <span class="text-[10px] text-stone-500">(거점 전용)</span></span><b>${fmt(gar(S.pc))}명</b></p><p class="flex justify-between"><span>공격 전투력</span><b class="text-red-300">${fmt(calc(S.pc,p.t,false,null))}</b></p><p class="flex justify-between"><span>방어 전투력</span><b class="text-blue-300">${fmt(calc(S.pc,p.t,true,null))}</b></p></div><div class="bg-stone-950 p-2 rounded mt-2 text-xs"><span class="text-amber-500 font-bold">[패시브] </span>${me.ps}</div><div class="bg-stone-950 p-2 rounded mt-2 text-xs"><span class="text-amber-500 font-bold">[참모] </span>${CH[me.gen].i} 대장군 ${me.gen} · ${CH[me.adv].i} 책사 ${me.adv}</div><div class="bg-amber-950/20 p-2 rounded mt-2 text-xs border border-amber-900/30"><span class="text-amber-400 font-bold">[보유 거점] </span>${own(S.pc).map(h=>h+' (수비 '+fmt(tot(S.sh[h].t))+')').join(', ')||'없음'}</div><div class="mt-2 space-y-1">${K.map(k=>`<div class="flex justify-between bg-stone-800 p-1.5 rounded text-xs"><span>${UN[k].n} <span class="text-stone-500">공${UN[k].a} 방${UN[k].d}</span></span><b>${fmt(p.t[k])}</b></div>`).join('')}</div><p class="text-[10px] text-amber-300 mt-2">승리 조건: 적국의 영토를 모두 0으로 만들기, 또는 농업·상업·성벽 5단계 + 금화 150,000(경제 승리). 전투에서 이기면 적의 영토를 빼앗습니다.</p><p class="text-[10px] text-stone-500 mt-2">전투력 = (공격·방어 능력치 × 병력) ÷ 10. 전투는 최대 4합이며 제2합 종료 후 전술 개입 지휘를 내릴 수 있습니다. 상성: 창병▶기마병, 방패병▶궁병, 기마병▶궁병(약), 궁병▶보병, 보병▶방패병·창병(약).</p></div><div class="bg-stone-900/80 p-3 rounded-xl border border-stone-700"><h3 class="font-bold text-stone-400 border-b border-stone-700 pb-1 mb-2">대륙 세력 현황</h3><div class="space-y-2">${rivals}</div></div></div>
+ <div class="order-2 lg:order-3 bg-stone-900/90 p-3 rounded-xl border border-amber-900/40 self-start"><div class="flex gap-1 mb-3 bg-stone-950 p-1 rounded-lg">${Object.keys(tabs).map(k=>`<button onclick="tab('${k}')" class="flex-1 py-2 text-sm font-bold rounded ${S.tab===k?'bg-amber-800 text-white':'text-stone-500 hover:text-stone-300'}">${tabs[k]}</button>`).join('')}</div>${body}${S.m&&!S.ev?`<p class="text-red-400 text-sm mt-3">${S.m}</p>`:''}</div>
+ </div></div>${ev}${dpm()}${trpHTML()}${S.mp?mapHTML():''}${S.cfg?cfgHTML():''}${S.ds?dsm():''}${S.bq&&S.bq.length?btHTML():''}${end}`;autoBt();{const bl=$('btl');if(bl)bl.scrollTop=bl.scrollHeight}
+}
+R();
+</script>
+</body>
+</html>
