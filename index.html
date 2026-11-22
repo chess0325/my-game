@@ -958,5 +958,135 @@ function R(){
 }
 R();
 </script>
+<script>
+// ═══ 전투 연출 패치 (병력 비례 유닛 · 우측 로그 패널 · 초간단 로그) ═══
+const BZ_PER=175,BZ_MAX=90,BZ_MIN=3,BZT=['shield','spear','infantry','cavalry','bow','gen'];
+function bvUnits2(t0,s,per){const T=tot(t0)||1,a=[],N=Math.max(BZ_MIN,Math.min(BZ_MAX,Math.round(T/(per||BZ_PER))));K.forEach(k=>{const n=t0[k]>0?Math.max(1,Math.round(N*t0[k]/T)):0;for(let i=0;i<n;i++)a.push({k,s,i,n,ph:Math.random()*6.3,al:1,fl:0,x:null,y:0,ext:0,sw:0,mv:0})});a.push({k:'gen',s,i:0,n:1,ph:0,al:1,fl:0,x:null,y:0,ext:0,sw:0,mv:0});return a}
+function bvLay(sc,fx,u0,tac){
+ const W=sc.W,CG=9,TG=15*(tac==='guard'?.8:tac==='assault'?1.3:1),R0=Math.max(3,Math.min(14,Math.floor((sc.y1-sc.y0)/(11*u0)))),L={};
+ const room=Math.min(fx,(W>=900?W-312:W)-fx)-24*u0-sc.gap*W/2;
+ [sc.A,sc.B].forEach(arr=>{const n={},o={},r={};arr.forEach(u=>{n[u.k]=u.n});let run=0;
+  BZT.forEach(k=>{if(!n[k])return;const rows=k==='cavalry'?2:Math.min(n[k],R0),cols=k==='cavalry'?Math.ceil(n[k]/4):Math.ceil(n[k]/rows);r[k]=rows;o[k]=run;run+=cols*CG+TG});
+  L[arr[0].s]={r,o,sq:Math.max(.3,Math.min(1,room/(Math.max(1,run-TG)*u0)))}});
+ return L;
+}
+function bvSlot(L,u,sc,u0,my){
+ const k=u.k,q=u0*L.sq,off=L.o[k]*q,cg=9*q,y0=sc.y0,y1=sc.y1;
+ if(k==='gen')return[off,my];
+ if(k==='cavalry'){const fl=u.i%2,sl=u.i>>1,so=(sl%2)*6*u0;return[off+(sl>>1)*cg,fl?y1+10*u0+so:y0-8*u0-so]}
+ const rows=L.r[k],row=u.i%rows,col=Math.floor(u.i/rows),st=(y1-y0)/rows;
+ return[off+col*cg,y0+(row+.5)*st+(col%2?st*.5:0)+((u.i*7)%3-1)*2*u0];
+}
+function bvOpenLog(b){
+ const st=b.st,A=b.A0,B=b.B0,ta=tot(A)||1,tb=tot(B)||1,r=st.ia/st.ib;let bm=null,bs=.05;
+ WK.forEach(([x,y,w])=>[[A,B,b.nA,ta,tb],[B,A,b.nB,tb,ta]].forEach(([P,Q,W,np,nq])=>{const v=w*P[x]/np*Q[y]/nq;if(v>bs){bs=v;bm=W.n+' '+UN[x].n+'▶'+UN[y].n+' 상성 우세'}}));
+ const h=[r>1.3?b.nA.n+' 병력 우세':r<.77?b.nB.n+' 병력 우세':'병력 호각'];if(bm)h.push(bm);
+ return '<div class="text-stone-100"><b class="text-amber-400">[개전]</b> '+b.nA.n+' '+fmt(st.ia)+'명 vs '+b.nB.n+' '+fmt(st.ib)+'명<div class="text-stone-400">'+h.join(' · ')+'</div></div>';
+}
+function bvRdLog(b,r){
+ const pl=b.playerSide,al=pl==='A'?r.la:r.lb,en=pl==='A'?r.lb:r.la,dif=en>al*1.3?'아군 우세':al>en*1.3?'적 우세':'호각',who=(r.es?'A':'B')===pl?'아군':'적';
+ const ev=[who+' 측면 기습!',who+' 화공!','지휘 혼란!','폭우 · 양군 둔화',who+' 허위 정보 계략',who+' 증원 도착!'][r.ev];
+ const p=[dif,ev,String(r.tx).indexOf('전세가 뒤집힌다')>-1?'전세 역전!':'',r.ro?(r.ro===pl?'아군':'적')+' 전열 붕괴·패주!':''].filter(Boolean).join(' · ');
+ return '<div class="border-l-2 border-amber-600 pl-1.5"><b class="text-amber-400">['+r.n+'합]</b> '+p+' <span class="text-stone-400">(아군 -'+fmt(al)+' / 적군 -'+fmt(en)+')</span></div>';
+}
+function bvTacLog(id,o,note,st){
+ let t=o.name+' 발동';
+ if(id==='fire')t=o.name+(st.fire>0?' 성공 · 적 병력 15% 타격':' 실패 · 역풍!');
+ else if(id==='weak'&&/불리/.test(note))t+=' · 상성 불리';
+ else if(id==='retreat')t='질서 있는 후퇴';
+ return '<div class="text-amber-300"><b>[전술]</b> '+t+'</div>';
+}
+function bvEndLog(b){
+ const st=b.st,pl=b.playerSide,e=String(st.end||'').replace(st.nA.n+'군',pl==='A'?'아군':'적군').replace(st.nB.n+'군',pl==='B'?'아군':'적군'),sm=String(b.sum||'').split('\n')[0];
+ return '<div class="mt-1 pt-1.5 border-t border-amber-700/70"><div class="font-black text-sm '+(b.pw?'text-amber-300':'text-red-400')+'">[결과] '+b.msg+(/무승부|후퇴/.test(b.msg)?'':'!')+' '+e+'</div><div class="text-stone-300">'+sm+'</div></div>';
+}
+function bvSync(){
+ let el=$$('bv');
+ if(!(S&&S.bq&&S.bq.length)){if(el)el.remove();cancelAnimationFrame(BV.raf);BV.raf=0;BV.b=null;BV.sc=null;return}
+ const b=S.bq[0];if(BV.b===b&&el)return;
+ if(el)el.remove();BV.b=b;
+ el=document.createElement('div');el.id='bv';el.className='fixed inset-0 z-[70] bg-black select-none';el.style.cssText='width:100vw;height:100vh';
+ el.innerHTML='<canvas id="bc" class="absolute inset-0 w-full h-full"></canvas><div id="btl" class="fixed right-2 top-20 bottom-16 z-10 w-40 min-[480px]:w-64 sm:w-72 overflow-y-auto rounded-lg bg-black/45 backdrop-blur-sm border border-stone-600/40 p-2 space-y-1.5 text-xs"></div><div id="bh" class="absolute top-0 inset-x-0 z-20 p-2 pointer-events-none" style="padding-top:max(8px,env(safe-area-inset-top))"><div id="bhh"></div><div id="brs"></div></div><div id="bo" class="absolute inset-0 z-30 flex items-center justify-center p-3 sm:pr-80 pointer-events-none"></div><div id="bb" class="absolute bottom-0 inset-x-0 z-20 p-2 flex justify-center pointer-events-none" style="padding-bottom:max(8px,env(safe-area-inset-bottom))"><div id="bk" class="flex gap-2 pointer-events-auto"></div></div>';
+ document.body.appendChild(el);bvInit(b);
+}
+function bvInit(b){
+ const st=b.st,cv=$$('bc'),per=Math.max(BZ_PER,Math.max(tot(b.A0),tot(b.B0))/BZ_MAX);
+ const sc={cv,g:cv.getContext('2d'),W:0,H:0,d:1,t:0,last:performance.now(),A:bvUnits2(b.A0,'A',per),B:bvUnits2(b.B0,'B',per),corp:[],fx:[],txt:[],an:null,p:0,gap:.3,shift:0,advT:0,rain:0,sa:st.ia,sb:st.ib,ro:'',retT:-1,fin:0,skip:0,tac:'',tacT:0,key:st.site||st.oB,wn:(S.turn-1)%4===3,sn:[],bg:null,fires:[],cA:nC(b.nA.n),cB:nC(b.nB.n),u:1,y0:0,y1:0,fx0:0};
+ for(let i=0;i<150;i++)sc.sn.push({x:Math.random(),y:Math.random(),v:.05+Math.random()*.1,r:1+Math.random()*1.8,w:Math.random()*6});
+ sc.mx=Math.max(sc.A.length,sc.B.length)-1;sc.per=per;
+ BV.sc=sc;$$('btl').innerHTML='';bvLog(bvOpenLog(b));
+ bvHUD(b);bvBtn(b);cancelAnimationFrame(BV.raf);BV.raf=requestAnimationFrame(bvLoop);
+}
+function bvStep(sc,b,dt){
+ const st=b.st,rd=st.rd,D=dt*(sc.skip?10:1);sc.t+=D;sc.tacT+=D;
+ if(!sc.an&&b.ri<rd.length){
+  sc.an={r:rd[b.ri],t:0,T:b.ri===0?4.6:3.2,hit:0};if(sc.an.r.ev===3)sc.rain=1;
+  if(b.ri>=2&&st.tac){sc.tac=st.tac;sc.tacT=0;const o=BT_ORDERS.find(x=>x.id===st.tac);sc.txt.push({x:sc.W/2,y:sc.H*.3,t:0,T:2,s:o.name+(st.tac==='fire'?(st.fire>0?' 성공':' 역풍'):''),big:1,col:'#fde68a'})}
+  bvHUD(b);
+ }
+ const a=sc.an;
+ if(a){
+  a.t+=D;sc.p=a.t/a.T;
+  if(!a.hit&&sc.p>=.5){a.hit=1;bvHit(sc,b,a.r)}
+  if(sc.p>=1){
+   bvLog(bvRdLog(b,a.r));
+   b.ri++;sc.an=null;sc.p=0;bvHUD(b);
+   if(b.ri>=rd.length&&b.phase==='p1'){b.phase='choice';sc.skip=0;sfx([[440,.12],[554,.15]]);bvChoice(b)}
+  }
+ }else if(b.ri>=rd.length&&b.phase==='done'&&!sc.fin){
+  if(st.retreat){if(sc.retT<0)sc.retT=0;sc.retT+=dt/2.8;if(sc.retT>=1)bvResult(b)}else bvResult(b);
+ }
+}
+function bvResult(b){
+ const sc=BV.sc,st=b.st;sc.fin=1;
+ $$('brs').innerHTML=`<div class="text-center mt-2 fadein"><div class="text-4xl sm:text-6xl font-black drop-shadow-lg ${b.pw?'text-amber-400':'text-red-500'}">${b.msg}</div><div class="text-xs sm:text-sm text-amber-100 bg-black/55 rounded-lg px-3 py-1.5 inline-block mt-1 max-w-3xl whitespace-pre-line backdrop-blur-sm">${st.epi?st.epi+'\n':''}${st.end?'('+st.end+') ':''}${b.sum}</div></div>`;
+ bvLog(bvEndLog(b));sfx(b.pw?WIN:LOSE);bvBtn(b);
+}
+function interveneBt(id){
+ if(!S||!S.bq||!S.bq.length)return;
+ const bt=S.bq[0];if(bt.phase!=='choice')return;
+ const st=bt.st,isA=bt.playerSide==='A',P=isA?st.A:st.B,E=isA?st.B:st.A,PN=isA?st.nA:st.nB,EN=isA?st.nB:st.nA;
+ const o=BT_ORDERS.find(x=>x.id===id)||BT_ORDERS[1],m={o:1,i:1,amp:0};let note=o.log;
+ st.pa=tot(st.A);st.pb=tot(st.B);st.tac=id;st.tacSide=isA?'A':'B';
+ if(id==='assault'){m.o=1.3;m.i=1.2}
+ else if(id==='guard'){m.i=.7;m.o=.8}
+ else if(id==='weak'){m.amp=1;if(cb(P,E)<1.05){m.i=1.1;note+=' 그러나 병종 상성이 불리해 아군 피해가 늘어난다.'}}
+ else if(id==='fire'){if(Math.random()<.6){K.forEach(k=>{E[k]-=Math.floor(E[k]*.15)});st.fire=1;note=PN.n+'군이 '+EN.n+'군 진영에 불을 질렀다! 불길이 번져 적 남은 병력의 15%가 타격을 입는다.'}else{m.i=1.15;st.fire=-1;note=PN.n+'군의 화공이 역풍을 맞아 불길이 아군 쪽으로 되돌아온다!'}}
+ if(isA)st.modA=m;else st.modB=m;
+ st.tacticNote=note;
+ if(id==='retreat'){st.retreat=1;st.win=!isA;st.end=PN.n+'군 후퇴';st.tacticNote='';stepBtRounds(st,MAX_RD+1,MAX_RD,null)}
+ else stepBtRounds(st,3,MAX_RD,null);
+ bt.phase='done';commitBattle(bt);
+ bvLog(bvTacLog(id,o,note,st));bvUI();
+}
+function bvUpd(sc,b,D){
+ const W=sc.W,H=sc.H,u0=Math.max(.5,Math.min(H/540,W/820))*(sc.mx>40?1-.3*Math.min(1,(sc.mx-40)/50):1),a=sc.an,cl=a?Math.pow(Math.sin(Math.min(1,sc.p)*Math.PI),.6):0,tac=sc.tac,pl=b.playerSide;
+ sc.u=u0;sc.y0=H*.62;sc.y1=H*.9;
+ const gapT=(b.ri>0||a)?.04:.3;sc.gap+=(gapT-sc.gap)*Math.min(1,D*1.3);sc.shift+=(sc.advT-sc.shift)*Math.min(1,D*1.5);
+ const fx=W*(.42+.1*sc.shift),ret=sc.retT>=0?Math.min(1,sc.retT):0,my=(sc.y0+sc.y1)/2;sc.fx0=fx;const LY=bvLay(sc,fx,u0,tac);
+ const ev1=a&&a.r.ev===1?(a.r.es?'A':'B'):'',fireS=tac==='fire'&&b.st.fire>0?b.st.tacSide:'';
+ [sc.A,sc.B].forEach(arr=>arr.forEach(u=>{
+  const d=u.s==='A'?1:-1;
+  const sl=bvSlot(LY[u.s],u,sc,u0,my);let tx=fx-d*(sc.gap*W/2+sl[0]),ty=sl[1];
+  u.ext=0;u.sw=0;
+  if(u.al&&cl>0){
+   const sw=Math.sin(sc.t*7+u.ph);
+   if(u.k==='spear'){u.ext=Math.max(0,sw)*cl;tx+=d*u.ext*12*u0}else if(u.k==='shield'){tx+=d*cl*(.5+.5*sw)*5*u0}
+   else if(u.k==='infantry'){u.sw=cl*(sw*.5+.5);tx+=d*u.sw*8*u0;if(Math.random()<D*1.2*cl&&sc.fx.length<220)sc.fx.push({ty:'sl',x:u.x+d*18*u0,y:u.y-24*u0,d,t:0,T:.28,c:Math.random()<.5?'#fff':'#fbbf24'})}
+   else if(u.k==='cavalry'){const c=Math.sin(Math.min(1,sc.p)*Math.PI);tx+=d*c*(sc.gap*W+70*u0);ty+=(my-ty)*c*.55;if(c>.3&&u.x!=null&&Math.random()<D*6&&sc.fx.length<220)sc.fx.push({ty:'du',x:u.x-d*10*u0,y:u.y,t:0,T:.8,r:5*u0})}
+   else if(u.k==='bow'&&Math.random()<D*1.3*cl&&sc.fx.length<220){const f=ev1===u.s||fireS===u.s;sc.fx.push({ty:'ar',x0:u.x,y0:u.y-26*u0,x1:fx+d*(W*.07+Math.random()*W*.12),y1:sc.y0+Math.random()*(sc.y1-sc.y0)-14*u0,t:0,T:.9,f})}
+  }
+  if(ret>0&&u.s===pl)tx+=((u.s==='A'?-W*.2:W*1.2)-tx)*ret;
+  let rate=sc.t<2.2?2.4:5;
+  if(sc.ro){rate=1.5;if(u.s===sc.ro)tx=sc.ro==='A'?-W*.2:W*1.2;else tx+=(sc.ro==='A'?-1:1)*W*.3}
+  if(ret>0&&u.s===pl)rate=3;
+  if(u.x==null){u.x=d>0?-50*u0-Math.random()*W*.3:W+50*u0+Math.random()*W*.3;u.y=ty;u.mv=1}else{const r=Math.min(1,D*rate);u.mv=Math.abs(tx-u.x)>2||Math.abs(ty-u.y)>2?1:0;u.x+=(tx-u.x)*r;u.y+=(ty-u.y)*r}
+  if(!u.al&&u.fl<1){u.fl+=D*1.6;if(u.fl>=1){u.fl=1;sc.corp.push({x:u.x,y:u.y,s:u.s,r:(Math.random()-.5)*.6})}}
+ }));
+ if(tac==='fire'&&a&&b.ri===2&&sc.p<.9){const tgt=b.st.fire>0?(b.st.tacSide==='A'?'B':'A'):b.st.tacSide,dd=tgt==='A'?-1:1;for(let i=0;i<D*70;i++)if(sc.fx.length<260)sc.fx.push({ty:'fl',x:fx+dd*(W*.05+Math.random()*W*.26),y:sc.y0+Math.random()*(sc.y1-sc.y0),t:0,T:.7+Math.random()*.5,r:(8+Math.random()*10)*u0})}
+ if(cl>.2&&Math.random()<D*9*cl&&sc.fx.length<220)sc.fx.push({ty:'du',x:fx+(Math.random()-.5)*50*u0,y:sc.y0+Math.random()*(sc.y1-sc.y0),t:0,T:.8,r:6*u0});
+ sc.fx=sc.fx.filter(f=>(f.t+=D)<f.T);sc.txt=sc.txt.filter(f=>(f.t+=D)<f.T);
+}
+</script> 
 </body>
 </html>
