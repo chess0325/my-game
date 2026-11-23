@@ -819,10 +819,14 @@ function terrain(){
  const fb=(x,y)=>(vn(x,y)+vn(x*2,y*2)*.5+vn(x*4,y*4)*.25+vn(x*8,y*8)*.125)/1.875;
  const bump=(x,y,cx,cy,r,a)=>a*Math.exp(-((x-cx)**2+(y-cy)**2)/(r*r));
  const t2=al.reduce((a,c)=>a+L[c],0)||1,site=al.map(c=>({c,x:CAP[c][0]/2,y:CAP[c][1]/2,w:60000*L[c]/t2,rgb:hx(CO[c].hx),sx:0,sy:0,n:0}));
- const hg=new Float32Array(N),ow=new Int8Array(N).fill(-1),cd=new Float32Array(N);
+  const hg=new Float32Array(N),ow=new Int8Array(N).fill(-1),cd=new Float32Array(N),WX=new Float32Array(N),WY=new Float32Array(N),lp=[];
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,e=((x-200)/190)**2+((y-131)/121)**2+(fb(x*.05+3,y*.05)-.47)*.5;cd[i]=e;if(e>=1)continue;
   hg[i]=Math.min(1,Math.max(0,fb(x*.022,y*.022)*.9+bump(x,y,300,55,45,.35)+bump(x,y,330,212,50,.4)+bump(x,y,85,55,40,.12)-bump(x,y,200,125,40,.1)));
-  const wx=x+(fb(x*.03+9,y*.03)-.47)*50,wy=y+(fb(x*.03,y*.03+7)-.47)*50;let b=1e18,bi=0;site.forEach((s,k)=>{const v=(wx-s.x)**2+(wy-s.y)**2-s.w;if(v<b){b=v;bi=k}});ow[i]=bi;site[bi].sx+=x;site[bi].sy+=y;site[bi].n++}
+    WX[i]=x+(fb(x*.03+9,y*.03)-.47)*50;WY[i]=y+(fb(x*.03,y*.03+7)-.47)*50;lp.push(i)}
+ const asg=i=>{let b=1e18,bi=0;for(let k=0;k<site.length;k++){const s=site[k],v=(WX[i]-s.x)**2+(WY[i]-s.y)**2-s.w;if(v<b){b=v;bi=k}}return bi};
+ const smp=lp.filter((_,j)=>j%3===0),tg=site.map(s=>L[s.c]/t2);
+ for(let it=0;it<60;it++){const ar=site.map(()=>0);for(let j=0;j<smp.length;j++)ar[asg(smp[j])]++;site.forEach((s,k)=>{s.w+=(tg[k]-ar[k]/smp.length)*30000})}
+ for(let j=0;j<lp.length;j++){const i=lp[j],bi=asg(i),x=i%W,y=(i/W)|0;ow[i]=bi;site[bi].sx+=x;site[bi].sy+=y;site[bi].n++}
  const A=new Uint8ClampedArray(N*4),B=new Uint8ClampedArray(N*4),Cm=new Uint8ClampedArray(N*4),og=a=>a>=0&&a<N?ow[a]:-1;
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,j=i*4;
   if(ow[i]<0){const s=Math.min(1,Math.max(0,(cd[i]-1)/.22)),n=fb(x*.04,y*.2)*16;A[j]=10+(1-s)*20+n*.4;A[j+1]=42+(1-s)*52+n;A[j+2]=76+(1-s)*66+n;A[j+3]=255;B[j+3]=255;Cm[j]=Cm[j+1]=Cm[j+2]=255;Cm[j+3]=255;continue}
@@ -1153,55 +1157,83 @@ function gate(c,k,dl){
  q.push(t);return t;
 }
 const SND={
+ // 화살 발사: 시위 튕김 + 공기를 가르는 소리
  bow(c,t,v,p){const d=AU.sfx;
-  tone(c,d,t,.09,'triangle',230*p,95*p,.07*v,.002);
-  noz(c,d,t,.05,'bandpass',1800*p,900,1.2,.05*v,.002);
-  tone(c,d,t+.02,.34,'sine',3300*p,620*p,.045*v,.006);
-  noz(c,d,t+.02,.36,'bandpass',5200*p,800,5,.1*v,.01);
+  tone(c,d,t,.11,'triangle',190*p,120*p,.09*v,.001);
+  noz(c,d,t,.045,'bandpass',1400,700,1.5,.08*v,.001);
+  noz(c,d,t+.03,.5,'bandpass',3200*p,700,.9,.07*v,.12);
  },
- thunk(c,t,v,p){const d=AU.sfx;tone(c,d,t,.09,'sine',150*p,55,.1*v,.003);noz(c,d,t,.06,'lowpass',1300,300,.8,.06*v,.002)},
- spear(c,t,v,p){const d=AU.sfx;
-  noz(c,d,t,.16,'bandpass',2400*p,500,2.2,.14*v,.02);
-  tone(c,d,t+.07,.13,'sine',170*p,60,.16*v,.003);
-  noz(c,d,t+.07,.1,'lowpass',900,200,.8,.1*v,.003);
+ // 화살 착탄: 둔탁한 충격 + 화살대 떨림
+ thunk(c,t,v,p){const d=AU.sfx;
+  tone(c,d,t,.1,'sine',140*p,60,.12*v,.002);
+  noz(c,d,t,.05,'lowpass',1800,400,.7,.1*v,.001);
+  noz(c,d,t,.03,'bandpass',2500,1500,2,.04*v,.001);
+  tone(c,d,t+.005,.12,'sine',(420+rnd()*120)*p,380*p,.03*v,.001);
  },
- sword(c,t,v,p){const d=AU.sfx,f=(1500+rnd()*1400)*p;
-  fm(c,d,t,.26,f,1.4142,2.8,.065*v);
-  fm(c,d,t,.18,f*1.53,2.756,2.2,.04*v);
-  fm(c,d,t,.34,f*.34,1.618,3.4,.06*v);
-  noz(c,d,t,.045,'highpass',5200,3600,.7,.11*v,.001);
-  if(rnd()<.55){const t2=t+.065+rnd()*.05,f2=f*(.78+rnd()*.3);fm(c,d,t2,.2,f2,1.4142,2.4,.05*v);noz(c,d,t2,.035,'highpass',4800,3400,.7,.08*v,.001)}
+ // 창 찌르기: 바람 소리 → 갑옷/방패 충격 → 촉 긁힘 + 자루 떨림
+ spear(c,t,v,p){const d=AU.sfx,t2=t+.1;
+  noz(c,d,t,.14,'bandpass',1800*p,700,1,.09*v,.05);
+  tone(c,d,t2,.13,'sine',130*p,50,.17*v,.002);
+  noz(c,d,t2,.09,'lowpass',1500,250,.8,.13*v,.002);
+  noz(c,d,t2,.04,'highpass',3000,2500,.7,.05*v,.001);
+  tone(c,d,t2,.15,'triangle',(260+rnd()*80)*p,200*p,.03*v,.002);
  },
+ // 칼 부딪힘: 접촉 transient + 철판 몸통음 + 비정수배 금속 잔향
+ sword(c,t,v,p){const d=AU.sfx,f=(1700+rnd()*1500)*p;
+  const clash=(tt,s)=>{
+   noz(c,d,tt,.03,'highpass',3500,2500,.7,.16*v*s,.0008);
+   noz(c,d,tt,.07,'bandpass',900*p,500,1.4,.1*v*s,.001);
+   tone(c,d,tt,.08,'sine',170,70,.08*v*s,.002);
+   [1,2.32,3.87,5.41,7.1].forEach((m,i)=>{const fr=f*m*(1+(rnd()-.5)*.05);if(fr<11000)tone(c,d,tt,.06+.22/(i+1)*(.6+rnd()*.8),'sine',fr,fr*.998,.045*v*s/(1+i*.5),.0008)});
+  };
+  clash(t,1);if(rnd()<.55)clash(t+.06+rnd()*.07,.6);
+ },
+ // 방패 충격: 목재가 울리는 둔탁한 소리
  shield(c,t,v,p){const d=AU.sfx;
-  tone(c,d,t,.26,'sine',140*p,40,.3*v,.003);
-  noz(c,d,t,.16,'lowpass',1400,180,.8,.2*v,.003);
-  tone(c,d,t,.07,'triangle',330*p,190,.09*v,.001);
-  fm(c,d,t,.18,430*p,1.5,1.5,.03*v);
+  tone(c,d,t,.22,'sine',120*p,45,.28*v,.002);
+  noz(c,d,t,.12,'lowpass',1100,200,.8,.2*v,.002);
+  noz(c,d,t,.07,'bandpass',(550+rnd()*200)*p,350,3,.12*v,.001);
+  noz(c,d,t,.025,'highpass',3500,3000,.7,.05*v,.001);
  },
- boom(c,t,v){const d=AU.sfx;tone(c,d,t,.6,'sine',90,35,.4*v,.004);noz(c,d,t,.5,'lowpass',700,90,.8,.25*v,.004)}
+ // 양군 격돌: 저음 진동 + 대군이 부딪히는 웅성임
+ boom(c,t,v){const d=AU.sfx;
+  tone(c,d,t,.45,'sine',80,32,.3*v,.004);
+  noz(c,d,t,.8,'lowpass',900,120,.7,.2*v,.02);
+  noz(c,d,t+.02,.5,'bandpass',1800,600,.6,.06*v,.03);
+ }
 };
+// 군중 함성: 서로 다른 음높이·시작 시점의 목소리 16명 + 숨소리 노이즈
 function cry(c,t,v,dur){
- const out=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter(),f3=c.createBiquadFilter();
- out.gain.setValueAtTime(.0001,t);out.gain.exponentialRampToValueAtTime(.2*v,t+.22);out.gain.setValueAtTime(.2*v,t+dur*.5);out.gain.exponentialRampToValueAtTime(.0001,t+dur);
- f1.type=f2.type=f3.type='bandpass';f1.Q.value=2.4;f2.Q.value=3.2;f3.Q.value=4;
- f1.frequency.setValueAtTime(520,t);f1.frequency.linearRampToValueAtTime(820,t+dur*.4);f1.frequency.linearRampToValueAtTime(640,t+dur);
- f2.frequency.setValueAtTime(1050,t);f2.frequency.linearRampToValueAtTime(1250,t+dur*.4);f2.frequency.linearRampToValueAtTime(1100,t+dur);
- f3.frequency.value=2600;
- [f1,f2,f3].forEach(f=>f.connect(out));out.connect(AU.sfx);
- for(let i=0;i<10;i++){
-  const o=c.createOscillator(),g=c.createGain(),lf=c.createOscillator(),lg=c.createGain(),b0=88+rnd()*110;
-  o.type=i%3===0?'square':'sawtooth';
-  o.frequency.setValueAtTime(b0,t);o.frequency.linearRampToValueAtTime(b0*(1.25+rnd()*.2),t+dur*.35);o.frequency.linearRampToValueAtTime(b0*(.9+rnd()*.06),t+dur);
-  o.detune.value=(rnd()-.5)*60;
-  lf.frequency.value=4.5+rnd()*2;lg.gain.value=b0*.025;lf.connect(lg);lg.connect(o.frequency);lf.start(t);lf.stop(t+dur+.05);
-  g.gain.value=i%3===0?.28:.45;o.connect(g);g.connect(f1);g.connect(f2);g.connect(f3);o.start(t);o.stop(t+dur+.05);
+ const out=c.createGain(),f1=c.createBiquadFilter(),f2=c.createBiquadFilter(),f3=c.createBiquadFilter(),lp=c.createBiquadFilter();
+ lp.type='lowpass';lp.frequency.value=3800;lp.Q.value=.5;
+ out.gain.setValueAtTime(.0001,t);out.gain.exponentialRampToValueAtTime(.22*v,t+.3);out.gain.setValueAtTime(.22*v,t+dur*.45);out.gain.exponentialRampToValueAtTime(.0001,t+dur);
+ f1.type=f2.type=f3.type='bandpass';f1.Q.value=1.8;f2.Q.value=2.4;f3.Q.value=3;
+ f1.frequency.setValueAtTime(600,t);f1.frequency.linearRampToValueAtTime(780,t+dur*.35);f1.frequency.linearRampToValueAtTime(560,t+dur);
+ f2.frequency.setValueAtTime(1000,t);f2.frequency.linearRampToValueAtTime(1200,t+dur*.35);f2.frequency.linearRampToValueAtTime(950,t+dur);
+ f3.frequency.value=2500;
+ [f1,f2,f3].forEach(f=>f.connect(lp));lp.connect(out);out.connect(AU.sfx);
+ for(let i=0;i<16;i++){
+  const o=c.createOscillator(),g=c.createGain(),lf=c.createOscillator(),lg=c.createGain(),b0=80+rnd()*130,ts=t+rnd()*.3,td=dur-(ts-t);
+  o.type='sawtooth';
+  o.frequency.setValueAtTime(b0*.88,ts);o.frequency.linearRampToValueAtTime(b0*(1.2+rnd()*.25),ts+td*.3);o.frequency.linearRampToValueAtTime(b0*(.8+rnd()*.12),ts+td);
+  lf.frequency.value=3+rnd()*5;lg.gain.value=b0*(.02+rnd()*.03);lf.connect(lg);lg.connect(o.frequency);lf.start(ts);lf.stop(ts+td+.05);
+  g.gain.setValueAtTime(.0001,ts);g.gain.linearRampToValueAtTime(.18+rnd()*.14,ts+.12);g.gain.linearRampToValueAtTime(.0001,ts+td);
+  o.connect(g);g.connect(f1);g.connect(f2);g.connect(f3);o.start(ts);o.stop(ts+td+.05);
  }
  const s=c.createBufferSource(),nf=c.createBiquadFilter(),ng=c.createGain();
- s.buffer=nbuf(c);s.loop=true;nf.type='bandpass';nf.frequency.value=1200;nf.Q.value=.7;ng.gain.value=.55;
+ s.buffer=nbuf(c);s.loop=true;nf.type='bandpass';nf.frequency.value=1100;nf.Q.value=.6;ng.gain.value=.7;
  s.connect(nf);nf.connect(ng);ng.connect(out);s.start(t,rnd()*1.5);s.stop(t+dur+.05);
 }
+// 말발굽: 3박 구보 리듬(따각-따각-따각 … 쉼), 흙 충격음 + 딱 하는 접지음 + 가끔 마구 짤랑임
 function hoof(c,t,v,n){
- for(let i=0;i<n;i++){const tt=t+i*.115+(i%2?.045:0)+rnd()*.012;tone(c,AU.sfx,tt,.09,'sine',90+rnd()*20,48,.1*v,.002);noz(c,AU.sfx,tt,.06,'lowpass',520,160,.9,.06*v,.002)}
+ const d=AU.sfx,OF=[0,.07,.15];
+ for(let i=0;i<n;i++){
+  const tt=t+Math.floor(i/3)*.42+OF[i%3]+rnd()*.01;
+  tone(c,d,tt,.1,'sine',95+rnd()*35,50,.09*v,.002);
+  noz(c,d,tt,.07,'lowpass',700,150,.8,.08*v,.002);
+  noz(c,d,tt,.02,'bandpass',1500+rnd()*500,1200,3,.03*v,.001);
+  if(rnd()<.25)noz(c,d,tt,.06,'highpass',5000,4200,.7,.02*v,.002);
+ }
 }
 function snd(k,v,dl){
  if(isMute())return;
@@ -1299,7 +1331,22 @@ document.addEventListener('visibilitychange',()=>{const c=AU.ctx;if(!c)return;tr
 zac=function(){unlock();return null};
 sfx=function(a){
  const c=live();if(!c)return;
- try{const t=c.currentTime;a.forEach(([f,d],i)=>tone(c,AU.sfx,t+i*.15,d,'triangle',f,f*.98,.12,.01))}catch(e){}
+ try{
+  const t=c.currentTime,d=AU.sfx;
+  const drum=(tt,v,f)=>{f=f||120;tone(c,d,tt,.4,'sine',f,f*.36,.5*v,.003);noz(c,d,tt,.12,'lowpass',500,120,.8,.22*v,.002);noz(c,d,tt,.03,'bandpass',1800,1200,1,.06*v,.001)};
+  if(a===WIN){
+   brass(c,d,t,.3,196,.09);brass(c,d,t+.28,.3,261.6,.09);brass(c,d,t+.56,.95,329.6,.1);
+   drum(t,1);drum(t+.28,.8);drum(t+.56,1.1);
+  }else if(a===LOSE){
+   brass(c,d,t,1.1,98,.1);brass(c,d,t+.75,1.5,87.3,.1);
+   drum(t,1,90);drum(t+.8,.9,80);
+  }else if(a===ALARM){
+   brass(c,d,t,.35,146.8,.1);brass(c,d,t+.45,.55,146.8,.11);
+   drum(t,.9);drum(t+.45,1);
+  }else{
+   drum(t,.8);drum(t+.17,.6,150);
+  }
+ }catch(e){}
 };
 zStart=function(){snd('cry',1.1);snd('boom',.9,.35)};
 zEnd=function(b){snd('cry',b&&b.pw?1.1:.5)};
