@@ -9,8 +9,8 @@
 (function(){
  var w=console.warn;
  console.warn=function(){var m=String(arguments[0]||'');if(m.indexOf('cdn.tailwindcss.com should not be used in production')>-1)return;return w.apply(console,arguments)};
- window.addEventListener('error',function(e){if(e&&e.target&&e.target!==window)return;e.preventDefault()});
- window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
+ /* window.addEventListener('error',function(e){if(e&&e.target&&e.target!==window)return;e.preventDefault()});
+window.addEventListener('unhandledrejection',function(e){e.preventDefault()}); */
 })();
 </script>
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
@@ -132,7 +132,7 @@ function initBtState(oA,A0,oB,B0,site,mA,mB,nA,nB){
  const gx0=mkT(TC[dmn(A0)],nA||NM0),gy0=mkT(TC[dmn(B0)],nB||{g:'다'});
  nA=nA||NM0;nB=nB||{n:'을',g:'다',s:'라'};nA={...nA,n:nA.n.replace(/군$/,'')};nB={...nB,n:nB.n.replace(/군$/,'')};
  const A={...A0},B={...B0},ia=tot(A)||1,ib=tot(B)||1;
- const sa=sit(nA.n,oA===S.pc?atkCost(tot(A0),oB&&CAP[oB]?oB:site):0),sb=sit(nB.n,0),fld=site?(FLD[site]||site):'성벽 앞 들판';
+ const sa=sit(nA.n,oA===S.pc?atkCost(tot(A0),site||oB):0),sb=sit(nB.n,0),fld=site?(FLD[site]||site):'성벽 앞 들판';
  const pro='📜 제 '+S.turn+'턴, '+SEAS[(S.turn-1)%4]+'. '+nA.n+'군이 '+(site?site+jo(site,'을','를'):nB.n+'의 본성을')+' 노려 '+fld+'에 진을 쳤다. 병력은 '+nA.n+' '+fmt(ia)+'명 대 '+(CO[nB.n]?nB.n:nB.n+'군')+' '+fmt(ib)+'명으로, '+nA.n+'군은 '+ratioTx(ia/ib)+'.\n▸ '+nA.n+'(공격): '+(sline(sa,false,nA.n)||'큰 문제 없이 정비를 마치고 출정했다.')+'\n▸ '+(CO[nB.n]?nB.n:nB.n+'군')+'(수비): '+(sline(sb,true,nB.n)||'성과 보급선을 단단히 지키며 적을 기다린다.');
  const lb=x=>(CH[x.g]?x.n+' 대장군 ':'')+x.g;
  const intro=pro+'\n\n▸ '+lb(nA)+' ['+cs(A0)+'] — '+gx0.st+'\n  '+gx0.cmd+'\n▸ '+lb(nB)+' ['+cs(B0)+'] — '+gy0.st+'\n  '+gy0.cmd+(gx0.ad?'\n참모 '+nA.s+': “'+gx0.ad+'”':'')+(gy0.ad?'\n참모 '+nB.s+': “'+gy0.ad+'”':'');
@@ -220,7 +220,7 @@ function commitBattle(bt){
  if(bt.mode==='sortie'){
   const {p,T,isN,sh,ow,before,sent,cost,pc,nc}=c,R2={win:st.win,msg:st.msgA},mine=lossOf(sent,st.A),nt=isN?S.nd[T].t:sh.t;let ex='';
   K.forEach(k=>{p.t[k]=Math.max(0,p.t[k]-mine[k]);nt[k]=st.B[k]});
-  const foe=lossOf(before,nt);S.st.bw+=R2.win?1:0;S.st.bl+=R2.win?0:1;S.st.kl+=tot(foe);S.st.ls+=tot(mine);mvp(S.pc,T);
+  const foe=lossOf(before,nt);S.st.bw+=R2.win?1:0;S.st.bl+=(R2.win||st.draw)?0:1;S.st.kl+=tot(foe);S.st.ls+=tot(mine);mvp(S.pc,T);
   if(R2.win){
    if(isN){
     const e=S.nd[T],g=Math.min(R2.msg==='압승'?30000:20000,e.land);p.land+=g;e.land-=g;S.ten[T]+=50;ex='\n- 적 영토 '+fmt(g)+'km² 탈취 (적 남은 영토 '+fmt(e.land)+')';
@@ -242,12 +242,12 @@ function commitBattle(bt){
   K.forEach(k=>{e.t[k]=Math.max(0,e.t[k]-l1[k]);s.t[k]=st.B[k]});
   if(R2.win){s.owner=n;const gv=part(e.t,.25);K.forEach(k=>e.t[k]-=gv[k]);s.t=gv;const g=Math.min(8000,S.pd.land);S.pd.land-=g;e.land+=g;ex='\n- 🚩 ['+hh+']을(를) 빼앗겼습니다! 영토 '+fmt(g)+'km² 상실'}
   mvp(n,hh);log('거점 침공: '+hh,n+'이(가) ['+hh+']을(를) 공격했습니다. 결과: '+(R2.win?'아국 패배':'수성 성공')+' (적 공격력 '+fmt(a)+' vs 내 수비 '+fmt(d)+')\n- 수비병: '+gb+'\n- 아군 수비병 전사: '+fmt(tot(l2))+'명 ['+tl(l2)+']\n- 적군 전사: '+fmt(tot(l1))+'명 ['+tl(l1)+']'+ex,'c',n);
-  bt.msg=R2.msg?'거점 함락':'수성 성공';bt.pw=!R2.win;bt.sum=sumOf(l2,l1,ex);
+ bt.msg=R2.win?'거점 함락':'수성 성공';bt.pw=!R2.win;bt.sum=sumOf(l2,l1,ex);
   bt.afterConfirm=()=>nextStep();
  }else if(bt.mode==='defend'){
   const {p,evFrom,evTroops,used,cost,ac,dc}=c,R2={win:!st.win&&!st.draw,msg:st.msgD},mine=lossOf(used,st.B),foe=lossOf(evTroops,st.A),en=S.nd[evFrom];
   K.forEach(k=>{p.t[k]=Math.max(0,p.t[k]-mine[k]);en.t[k]=Math.max(0,en.t[k]-foe[k])});
-  const fail=R2.msg==='방어 실패',g=fail?Math.min(10000,p.land):0;S.st[fail?'bl':'bw']++;S.st.kl+=tot(foe);S.st.ls+=tot(mine);p.land-=g;en.land+=g;
+  const fail=R2.msg==='방어 실패',g=fail?Math.min(10000,p.land):0;if(!st.draw)S.st[fail?'bl':'bw']++;S.st.kl+=tot(foe);S.st.ls+=tot(mine);p.land-=g;en.land+=g;
   log('수성전: '+evFrom+'의 침공','결과: [수성 '+R2.msg+'] 내 방어력 '+fmt(dc)+' vs 적 공격력 '+fmt(ac)+' · '+st.rd.length+'합 접전 ('+st.end+')\n- 교전: '+st.notes+'\n- 방어 투입: '+tl(used)+' (군량 -'+fmt(cost)+')\n- 아군 전사: '+fmt(tot(mine))+'명 ['+tl(mine)+']\n- 적군 전사: '+fmt(tot(foe))+'명 ['+tl(foe)+'] (침공군 '+fmt(tot(evTroops))+'명)'+(fail?'\n- 영토 '+fmt(g)+'km² 피탈':''),'c');
   S.ten[evFrom]=Math.max(0,S.ten[evFrom]-30);S.pd=p;
   bt.msg=R2.msg;bt.pw=R2.win;bt.sum=sumOf(mine,foe,fail?'\n영토 '+fmt(g)+'km² 피탈':'');
@@ -594,12 +594,12 @@ const pick=x=>{S.tg=x;S.tab='mil';S.m='';R()};
 const tab=x=>{S.tab=x;S.m='';R()};
 function mod(key,k,a){let v=Math.max(0,S[key][k]+a);if(key!=='dr'&&v>S.pd.t[k])v=S.pd.t[k];S[key][k]=v;R()}
 function all(key){S[key]={...S.pd.t};R()}
-const draftCost=()=>K.reduce((a,k)=>a+S.dr[k]*UN[k].c,0)*(hasSh('북방 한철 광산')?.9:1);
+const draftCost=()=>Math.round(K.reduce((a,k)=>a+S.dr[k]*UN[k].c,0)*(hasSh('북방 한철 광산')?.9:1));
 
 function internal(){if(S.hold)return M(HM);snap();
  const p=clone();
- let g=Math.floor(p.land*.03*p.min/100+900);if(S.pc==='서라국')g=Math.floor(g*1.25);if(hasSh('중원 황금상단'))g+=2500;
- let f=Math.floor(p.land*.04*p.min/100+1200);if(hasSh('서라 대곡창'))f+=2000;if(S.pc==='서라국')f=Math.floor(f*1.25);
+ let g=Math.floor(p.land*.03*p.min/100+900);if(S.pc==='서라국')g=Math.floor(g*1.25);
+let f=Math.floor(p.land*.04*p.min/100+1200);if(S.pc==='서라국')f=Math.floor(f*1.25);
  p.gold+=g;p.food+=f;p.min=Math.min(100,p.min+8);
  log('치국안민 반포','금화 +'+fmt(g)+', 군량 +'+fmt(f)+', 민심 +8');endTurn(p);
 }
@@ -690,7 +690,7 @@ function raid(n,hh){
 }
 function npcTurn(n,q,coalRole,raidedSet){
  const e=S.nd[n],p=S.pd,others=alive().filter(x=>x!==n),on=others[0],oe=on&&S.nd[on];
- const ai=DF[S.df].ai;e.gold+=Math.floor(3000*ai);e.food+=Math.floor(2000*ai);{const up=Math.floor((tot(e.t)+gar(n)*.5)*UPK);if(e.food>=up)e.food-=up;else{e.food=0;K.forEach(k=>e.t[k]=Math.floor(e.t[k]*.92))}}
+ const ai=DF[S.df].ai;e.gold+=Math.floor(3000*ai)+(own(n).includes('중원 황금상단')?2500:0);e.food+=Math.floor(2000*ai)+(own(n).includes('서라 대곡창')?2000:0);{const up=Math.floor((tot(e.t)+gar(n)*.5)*UPK);if(e.food>=up)e.food-=up;else{e.food=0;K.forEach(k=>e.t[k]=Math.floor(e.t[k]*.92))}}
  const et=tot(e.t);
  if(S.coalition){
   S.ten[n]=Math.max(S.ten[n],85);
@@ -756,7 +756,7 @@ function endTurn(p){
  const m4=['infantry','spear','bow','cavalry'];
  if(hasSh('동부 용병 주둔지')){m4.forEach(k=>p.t[k]+=100);log('용병 합류 (용병 주둔지)','떠돌이 용병 400명이 본국에 합류했습니다. [보병 100 · 창병 100 · 궁병 100 · 기마병 100]','sys')}
  else{const o=S.sh['동부 용병 주둔지'].owner;if(o&&S.nd[o]){m4.forEach(k=>S.nd[o].t[k]+=100);log('용병 합류 (용병 주둔지)','용병 400명이 합류했습니다.','sys',o)}}
- p.gold+=800*S.inv.com;p.food+=700*S.inv.farm;S.pd=p;
+p.gold+=800*S.inv.com+(hasSh('중원 황금상단')?2500:0);p.food+=700*S.inv.farm+(hasSh('서라 대곡창')?2000:0);S.pd=p;
  if(S.inv.farm+S.inv.com+S.inv.wall>=15&&p.gold>=150000)return over(1,'내정을 극에 달해 천하의 민심이 스스로 귀의했습니다. (경제 승리)');
  if(!alive().length)return over(1,'모든 적국의 영토를 0으로 만들어 천하를 통일했습니다!');
  const totLand=p.land+alive().reduce((s,n)=>s+S.nd[n].land,0);
@@ -971,7 +971,7 @@ function bvLay(sc,fx,u0,tac){
  const room=Math.min(fx,(W>=900?W-312:W)-fx)-24*u0-sc.gap*W/2;
  [sc.A,sc.B].forEach(arr=>{const n={},o={},r={};arr.forEach(u=>{n[u.k]=u.n});let run=0;
   BZT.forEach(k=>{if(!n[k])return;const rows=k==='cavalry'?2:Math.min(n[k],R0),cols=k==='cavalry'?Math.ceil(n[k]/4):Math.ceil(n[k]/rows);r[k]=rows;o[k]=run;run+=cols*CG+TG});
-  L[arr[0].s]={r,o,sq:Math.max(.3,Math.min(1,room/(Math.max(1,run-TG)*u0)))}});
+  const sq=Math.max(.3,Math.min(1,room/(Math.max(1,run-TG)*u0)));L[arr[0].s]={r,o,sq,dep:Math.max(1,run-TG)*u0*sq}});
  return L;
 }
 function bvSlot(L,u,sc,u0,my){
