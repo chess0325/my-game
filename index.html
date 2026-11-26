@@ -830,10 +830,10 @@ function terrain(){
  const A=new Uint8ClampedArray(N*4),B=new Uint8ClampedArray(N*4),Cm=new Uint8ClampedArray(N*4),og=a=>a>=0&&a<N?ow[a]:-1;
  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,j=i*4;
   if(ow[i]<0){const s=Math.min(1,Math.max(0,(cd[i]-1)/.22)),n=fb(x*.04,y*.2)*16;A[j]=10+(1-s)*20+n*.4;A[j+1]=42+(1-s)*52+n;A[j+2]=76+(1-s)*66+n;A[j+3]=255;B[j+3]=255;Cm[j]=Cm[j+1]=Cm[j+2]=255;Cm[j+3]=255;continue}
-  const h=hg[i],sh=1+((hg[i-W-1]||h)-(hg[i+W+1]||h))*3.4,t=h>.72?[238,240,242]:h>.58?[134,120,102]:h>.44?[134,140,80]:[104,140,68],sn=y<75?(75-y)/75*.55:0,o=site[ow[i]].rgb;
-  let c=[0,1,2].map(q=>((t[q]*(1-sn)+228*sn)*.5+o[q]*.5)*Math.min(1.35,Math.max(.6,sh)));
+    const h=hg[i],sh=1+((hg[i-W-1]||h)-(hg[i+W+1]||h))*3.4,bi=BIOI(WX[i],WY[i]),t=BIO[bi][h>.72?0:h>.58?1:h>.44?2:3],sn=bi===0&&y<110?(110-y)/110*.3:0,o=site[ow[i]].rgb;
+  let c=[0,1,2].map(q=>((t[q]*(1-sn)+236*sn)*.38+o[q]*.62)*Math.min(1.35,Math.max(.6,sh)));
   const nb=[og(i-1),og(i+1),og(i-W),og(i+W)];
-  if(nb.some(v=>v<0))c=c.map(v=>v*.55);else if(nb.some(v=>v!==ow[i])&&((x+y)&3)<3)c=c.map(v=>v*.35+30);
+  if(nb.some(v=>v<0))c=c.map(v=>v*.55);else if(nb.some(v=>v!==ow[i])&&((x+y)&3)<3)c=o.map(v=>Math.min(255,v*.75+70))
   A[j]=c[0];A[j+1]=c[1];A[j+2]=c[2];A[j+3]=255;B[j]=B[j+1]=B[j+2]=255;B[j+3]=255;Cm[j+3]=255}
  const mk=d=>{const cv=document.createElement('canvas');cv.width=W;cv.height=H;const x=cv.getContext('2d'),im=x.createImageData(W,H);im.data.set(d);x.putImageData(im,0,0);return cv.toDataURL()},cen={};
  site.forEach(s=>{if(s.n)cen[s.c]=[s.sx/s.n*2,s.sy/s.n*2]});
@@ -860,7 +860,22 @@ function castle(v,x,y,col,own,sel){
  const wall=v===3?`<rect x="-24" y="4" width="48" height="10" fill="#7c5a36"/>`+Array.from({length:9},(_,i)=>`<polygon points="${-24+i*5.4},4 ${-21.3+i*5.4},-3 ${-18.6+i*5.4},4" fill="#8b6a42"/>`).join('')+`<polygon points="-34,14 -26,2 -18,14" fill="#d6c7a1" stroke="#44403c" stroke-width=".6"/><polygon points="18,14 26,2 34,14" fill="#d6c7a1" stroke="#44403c" stroke-width=".6"/>`:`<rect x="-24" y="2" width="48" height="12" fill="${st}"/><rect x="-24" y="8" width="48" height="6" fill="#000" opacity=".18"/>`+cren(-24,24,2,st);
  const kh=v===4?30:v===0?24:20;
  return `<g transform="translate(${x},${y-2}) scale(.82)"><ellipse cx="0" cy="15" rx="34" ry="6" fill="#000" opacity=".4"/>${m}${sel?`<ellipse cx="0" cy="15" rx="37" ry="8" fill="none" stroke="#fff" stroke-width="2.6"/>`:''}${wall}${tws}<rect x="-9" y="${-kh}" width="18" height="${kh+14}" fill="${st}"/><rect x="0" y="${-kh}" width="9" height="${kh+14}" fill="#000" opacity=".2"/><polygon points="-12,${-kh} 0,${-kh-13} 12,${-kh}" fill="${rf}"/>${v===0?`<polygon points="-15,${-kh+6} 0,${-kh-3} 15,${-kh+6}" fill="${rf}" opacity=".9"/>`:''}<polygon points="0,${-kh-13} 12,${-kh} 0,${-kh}" fill="#000" opacity=".25"/><path d="M-4,14V8A4,4 0 0 1 4,8V14Z" fill="#1c1917"/><rect x="-1.5" y="${-kh+6}" width="3" height="5" fill="#fbbf24"/><line x1="0" y1="${-kh-13}" x2="0" y2="${-kh-25}" stroke="#d6d3d1" stroke-width="1.5"/><path d="M0,${-kh-25}h14l-4,5l4,5h-14z" fill="${gr}" stroke="#000" stroke-width=".5"><animate attributeName="d" dur="1.5s" repeatCount="indefinite" values="M0,${-kh-25}h14l-4,5l4,5h-14z;M0,${-kh-25}h12l-2,5l2,5h-12z;M0,${-kh-25}h14l-4,5l4,5h-14z"/></path></g>`}
-function mapHTML(){
+const CI={'북풍국':'❄️','서라국':'☀️','남월국':'🌿'};
+const plq=(x,y,ic,nm,sub,col)=>{const w=Math.max(86,nm.length*13+30,sub.length*6.4+16);return `<g><rect x="${x-w/2}" y="${y}" width="${w}" height="31" rx="7" fill="#0a0e16" fill-opacity=".82" stroke="${col}" stroke-opacity=".75" stroke-width="1.2"/><text x="${x}" y="${y+14}" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#fff">${ic} ${nm}</text><text x="${x}" y="${y+26}" text-anchor="middle" font-size="9.5" fill="#d6cfc0">${sub}</text></g>`};
+function decor(){
+ let o=`<defs><filter id="cb" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter></defs>`;
+ [[740,40,70,22,40],[760,470,80,26,55],[40,500,70,22,48],[390,6,90,14,60]].forEach(([x,y,rx,ry,du])=>{o+=`<g filter="url(#cb)" opacity=".42" pointer-events="none"><ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="#e8eef7"><animate attributeName="cx" values="${x-14};${x+14};${x-14}" dur="${du}s" repeatCount="indefinite"/></ellipse><ellipse cx="${x-rx*.5}" cy="${y+ry*.5}" rx="${rx*.6}" ry="${ry*.7}" fill="#e8eef7"/></g>`});
+ [['M796,70L690,18',30,0],['M796,310L772,440',36,-9],['M6,190L30,330',34,-14]].forEach(([d,du,b])=>{o+=`<g pointer-events="none"><path d="M-9,0L9,0L6,5L-6,5Z" fill="#3b2a1e"/><path d="M0,0V-14L8,-3Z" fill="#f1e9d2"/><path d="M0,-1V-11L-6,-3Z" fill="#d9ceb0"/><animateMotion dur="${du}s" begin="${b}s" repeatCount="indefinite" path="${d}"/></g>`});
+ o+=`<g transform="translate(150,494)" pointer-events="none"><rect width="440" height="22" rx="5" fill="#0a0e16" fill-opacity=".8" stroke="#b08d57" stroke-opacity=".7"/>`+[['북풍국','#3b82f6',20],['서라국','#f59e0b',120],['남월국','#22c55e',220],['중립','#d6d3d1',320]].map(([n,c,x])=>`<path d="M${x},4h12v8l-6,6l-6,-6z" fill="${c}" stroke="#000" stroke-width=".6"/><text x="${x+18}" y="15" font-size="11" fill="#e7e5e4">${n}</text>`).join('')+'</g>';
+ return o;
+}
+const MTB=()=>[['cont','대륙'],['war','전장'],['pow','세력']].map(([k,n])=>`<button onclick="S.mt='${k}';R()" class="px-3 py-1 rounded text-sm ${(S.mt||'cont')===k?'bg-amber-700 text-white':'bg-stone-800 text-stone-400 hover:bg-stone-700'}">${n}</button>`).join('');
+const powH=()=>{const al=Object.keys(CO).filter(c=>c===S.pc||S.nd[c].alive),sum=al.reduce((a,c)=>a+(c===S.pc?S.pd:S.nd[c]).land,0)||1;return al.map(c=>{const d=c===S.pc?S.pd:S.nd[c],p=Math.round(d.land/sum*100);return `<div class="mb-1.5"><div class="flex justify-between text-xs"><b style="color:${CO[c].hx}">${c}${c===S.pc?' (나)':''}</b><span>영토 ${p}% · 병력 ${fmt(tot(d.t))} · 거점 ${own(c).length}</span></div><div class="h-2 bg-stone-800 rounded"><div class="h-2 rounded" style="width:${p}%;background:${CO[c].hx}"></div></div></div>`}).join('')};
+const warH=()=>{const L=(S.mv||[]).filter(m=>m.t>=S.turn-1);return L.length?L.map(m=>`<div class="text-xs"><b style="color:${CO[m.a]?CO[m.a].hx:'#fff'}">${m.a}</b> ▶ ${m.b} <span class="text-stone-500">(제 ${m.t}턴)</span></div>`).join(''):'<p class="text-stone-500 text-xs">최근 2턴 동안 진군 기록이 없습니다.</p>'};
+const BIO=[[[238,243,250],[150,158,172],[142,158,176],[176,194,210]],[[214,190,150],[150,112,78],[208,164,92],[226,184,102]],[[224,230,222],[112,102,88],[70,118,52],[88,138,60]]];
+const CK=Object.keys(CAP);
+const BIOI=(x,y)=>{let b=0,m=1e18;CK.forEach((k,i)=>{const v=(x-CAP[k][0]/2)**2+(y-CAP[k][1]/2)**2;if(v<m){m=v;b=i}});return b};
+ function mapHTML(){
  let sd=11;const rn=()=>(sd=sd*16807%2147483647)/2147483647;
  const sc=(cx,cy,rx,ry,n,f)=>Array.from({length:n},()=>{const a=rn()*6.283,r=Math.sqrt(rn());return [cx+Math.cos(a)*r*rx,cy+Math.sin(a)*r*ry]}).sort((a,b)=>a[1]-b[1]).map(([x,y])=>f(x,y)).join('');
 
@@ -884,18 +899,21 @@ function mapHTML(){
  const blob='M-90,-20C-100,-70 -40,-95 20,-85C80,-80 110,-30 95,20C85,70 30,90 -30,80C-80,70 -95,30 -90,-20Z';
  const lab=(x,y,t,c,sz=11)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${sz}" font-weight="bold" fill="${c}" stroke="#000" stroke-width="3" paint-order="stroke">${t}</text>`;
  Object.keys(CO).forEach(c=>{
+   if(S.mt==='war')g+='<rect width="800" height="520" fill="#050810" opacity=".5" pointer-events="none"/>';
+ const sumL=Object.keys(CO).reduce((a,n)=>a+(n===S.pc?S.pd.land:S.nd[n].alive?S.nd[n].land:0),0)||1;
+ Object.keys(CO).forEach(c=>{
   if(c!==S.pc&&!S.nd[c].alive)return;
-  const d=c===S.pc?S.pd:S.nd[c],[x,y]=CAP[c],col=CO[c].hx,[wx,wy]=T.cen[c]||[x,y];
-  g+=`<text x="${wx}" y="${wy+52}" text-anchor="middle" font-size="30" font-weight="900" font-style="italic" letter-spacing="9" fill="#fff" opacity=".3" pointer-events="none">${c}</text><g style="cursor:pointer" onclick="S.ms='@${c}';R()">${capital(c,x,y,S.ms==='@'+c)}${lab(x,y+36,c+(c===S.pc?' (본국)':''),'#fff',13)}${lab(x,y+50,'영토 '+fmt(d.land)+' · 병력 '+fmt(tot(d.t)),'#e7e5e4',10)}</g>`;
+  const d=c===S.pc?S.pd:S.nd[c],[x,y]=CAP[c],[wx,wy]=T.cen[c]||[x,y];
+  g+=`<text x="${wx}" y="${wy+52}" text-anchor="middle" font-size="30" font-weight="900" font-style="italic" letter-spacing="9" fill="#fff" opacity=".3" pointer-events="none">${c}</text><g style="cursor:pointer" onclick="S.ms='@${c}';R()">${capital(c,x,y,S.ms==='@'+c)}${plq(x,y+34,CI[c],c+(c===S.pc?' (본국)':''),(S.mt==='pow'?'영토 '+Math.round(d.land/sumL*100)+'%':'영토 '+fmt(d.land))+' · 병력 '+fmt(tot(d.t)),CO[c].hx)}</g>`;
  });
  Object.keys(SH).forEach(k=>{
   const s=S.sh[k],o=s.owner,col=o?CO[o].hx:'#d6d3d1',[x,y]=SHP[k];
-  g+=(o?`<circle cx="${x}" cy="${y}" r="42" fill="${col}" fill-opacity=".3" stroke="${col}" stroke-width="2"/>`:'')+`<g style="cursor:pointer" onclick="S.ms='${k}';R()">${castle(CV[k],x,y,col,o,S.ms===k)}${lab(x,y+34,k,col)}${lab(x,y+47,(o||'중립')+' · 수비 '+fmt(tot(s.t)),'#e7e5e4',10)}</g>`;
+  g+=(o?`<circle cx="${x}" cy="${y}" r="42" fill="${col}" fill-opacity=".3" stroke="${col}" stroke-width="2"/>`:'')+`<g style="cursor:pointer" onclick="S.ms='${k}';R()">${castle(CV[k],x,y,col,o,S.ms===k)}${plq(x,y+34,IC[k],k,(o||'중립')+' · 수비 '+fmt(tot(s.t)),col)}</g>`;
  });
- g+=warLayer();const ms=S.ms,isC=ms&&ms[0]==='@',nm=isC?ms.slice(1):ms;let det='<p class="text-stone-500 text-sm">지도의 거점이나 나라를 눌러 자세한 정보를 확인하세요.</p>';
+ g+=warLayer()+decor();const ms=S.ms,isC=ms&&ms[0]==='@',nm=isC?ms.slice(1):ms;let det='<p class="text-stone-500 text-sm">지도의 거점이나 나라를 눌러 자세한 정보를 확인하세요.</p>';
  if(ms&&isC){const d=nm===S.pc?S.pd:S.nd[nm];det=`<b style="color:${CO[nm].hx}">${nm} 본성</b> <span class="text-xs text-stone-400">${CT[nm]}</span><div class="text-sm mt-1">영토 ${fmt(d.land)} · 본국 병력 ${fmt(tot(d.t))}명 [${tl(d.t)}]<br>보유 거점: ${own(nm).join(', ')||'없음'}</div>${nm!==S.pc&&S.nd[nm].alive&&S.al[S.pc]!==nm?`<button onclick="S.mp=0;pick('@${nm}')" class="mt-2 px-3 py-1 bg-red-800 rounded text-sm">공격 목표로 설정</button>`:''}`}
  else if(ms){const s=S.sh[ms],o=s.owner;det=`<b style="color:${o?CO[o].hx:'#d6d3d1'}">${ms}</b> <span class="text-xs text-stone-400">(${o||'중립'})</span><div class="text-xs text-stone-400">${TR[ms]}</div><div class="text-xs whitespace-pre-line text-amber-200 mt-1">${SH[ms].desc}</div><div class="text-sm mt-1">${o?'수비병':'중립 병력'} ${fmt(tot(s.t))}명 [${tl(s.t)}]</div>${o===S.pc?`<button onclick="S.mp=0;S.gs='${ms}';tab('gar')" class="mt-2 px-3 py-1 bg-amber-800 rounded text-sm">수비병력 배치</button>`:`<button onclick="S.mp=0;pick('${ms}')" class="mt-2 px-3 py-1 bg-red-800 rounded text-sm">공격 목표로 설정</button>`}`}
- return `<div class="fixed inset-0 bg-black/85 z-40 overflow-y-auto p-3"><div class="max-w-5xl mx-auto bg-stone-900 border-2 border-emerald-700 rounded-xl p-3"><div class="flex justify-between items-center mb-2"><h2 class="font-bold text-emerald-400 text-lg">🗺 대륙 지도</h2><button onclick="S.mp=0;R()" class="px-3 py-1 bg-stone-700 hover:bg-stone-600 rounded">닫기 ✕</button></div><div class="rounded-lg overflow-hidden"><svg viewBox="0 0 800 520" class="w-full rounded-lg border border-stone-700">${g}</svg></div><div class="flex flex-wrap gap-2 items-center mt-2"><span class="text-xs text-stone-400">🔥 최근 전투 · 점선 화살표 = 최근 2턴의 진군 · 큰 성채 = 각국 본성 · 작은 성 = 전략 거점 (깃발 색 = 소유국, 회색 = 중립)</span></div><div class="grid sm:grid-cols-2 gap-3 mt-2"><div class="bg-stone-950 rounded p-2 min-h-[5rem]">${det}</div><div class="text-xs text-stone-400">${Object.keys(CO).map(c=>`<span style="color:${CO[c].hx}">●</span> ${c}: ${CT[c]}`).join('<br>')}<br>색 영역 = 나라 영토 (영토가 클수록 넓게 차지, 점선 = 국경) · 색 원 = 점령한 거점</div></div></div></div>`;
+ return `<div class="fixed inset-0 bg-black/85 z-40 overflow-y-auto p-3"><div class="max-w-5xl mx-auto bg-stone-900 border-2 border-emerald-700 rounded-xl p-3"><div class="flex justify-between items-center mb-2"><div class="flex items-center gap-3"><h2 class="font-bold text-emerald-400 text-lg">🗺 대륙 지도</h2><div class="flex gap-1">${MTB()}</div></div><button onclick="S.mp=0;R()" class="px-3 py-1 bg-stone-700 hover:bg-stone-600 rounded">닫기 ✕</button></div><div class="rounded-lg overflow-hidden"><svg viewBox="0 0 800 520" class="w-full rounded-lg border border-stone-700">${g}</svg></div><div class="flex flex-wrap gap-2 items-center mt-2"><span class="text-xs text-stone-400">🔥 최근 전투 · 점선 화살표 = 최근 2턴의 진군 · 큰 성채 = 각국 본성 · 작은 성 = 전략 거점 (깃발 색 = 소유국, 회색 = 중립)</span></div><div class="grid sm:grid-cols-2 gap-3 mt-2"><div class="bg-stone-950 rounded p-2 min-h-[5rem]">${S.mt==='pow'?powH():S.mt==='war'?warH():det}</div><div class="text-xs text-stone-400">${Object.keys(CO).map(c=>`<span style="color:${CO[c].hx}">●</span> ${c}: ${CT[c]}`).join('<br>')}<br>색 영역 = 나라 영토 (영토가 클수록 넓게 차지, 점선 = 국경) · 색 원 = 점령한 거점</div></div></div></div>`;
 }
 function garHTML(){
  const hs=own(S.pc);
