@@ -226,7 +226,7 @@ function commitBattle(bt){
     const e=S.nd[T],g=Math.min(R2.msg==='압승'?30000:20000,e.land);p.land+=g;e.land-=g;S.ten[T]+=50;ex='\n- 적 영토 '+fmt(g)+'km² 탈취 (적 남은 영토 '+fmt(e.land)+')';
     if(e.land<=0){conquer(T,p);ex+='\n- 🚩 '+T+' 영토 소멸, 멸망!'}
    }else{
-    const prev=sh.owner;sh.owner=S.pc;sh.t=z();
+    const prev=sh.owner;sh.owner=S.pc;sh.t=z();if(S.tg===T)S.tg='';
     if(prev){const g=Math.min(R2.msg==='압승'?15000:10000,S.nd[prev].land);p.land+=g;S.nd[prev].land-=g;S.ten[prev]+=60;ex='\n- 적 영토 '+fmt(g)+'km² 탈취';if(S.nd[prev].land<=0){conquer(prev,p);ex+='\n- 🚩 '+prev+' 영토 소멸, 멸망!'}}
     ex+='\n- 🚩 거점 점령 성공!';
    }
@@ -540,7 +540,7 @@ const ST_C={
 ['강철','“소신의 선조는 환제께서 북방을 맡기신 대도독이었습니다. 겨울마다 야만족의 말발굽을 막아 낸 대가가 이 굶주림이라면, 서라의 곡식을 빼앗는 것이 어찌 도둑질이겠습니까.”'],
 ['묵요','“북풍의 옥새 조각은 한철 광산 아래 봉인되어 있습니다. 세 조각을 모두 쥐는 자가 천하를 얻는다는 유조…… 폐하, 그것은 축복이 아니라 저주입니다. 한 사람이 가질 때까지 아무도 멈출 수 없으니까요.”'],
 ['강철','“폐하, 회담은 결렬되었습니다. 허나 소신은 오히려 반깁니다. 북풍의 기마는 오래 기다렸습니다. 명만 내리시면 눈이 녹기 전에 서라의 평야에 말발굽을 찍겠습니다.”'],
-['묵요','“성급하십니다, 장군. 폐하, 기마는 많이 먹습니다. 병력이 늘수록 군량은 병력의 십분의 육씩 사라지고, 곳간이 비면 민심이 흔들립니다. 민심이 무너지면 국경의 눈보다 먼저 나라가 녹습니다.”'],
+['묵요','“성급하십니다, 장군. 폐하, 기마는 많이 먹습니다. 병력이 늘수록 군량은 병력의 백분의 육씩 사라지고, 곳간이 비면 민심이 흔들립니다. 민심이 무너지면 국경의 눈보다 먼저 나라가 녹습니다.”'],
 ['강철','“그래서 책사는 늘 싸움을 아끼라고 하지.”'],
 ['묵요','“아끼라는 것이 아닙니다. 가장 값싼 때에 치자는 것입니다. 소신이 그림자를 보내 적의 금고를 비워 놓겠습니다. 그 금화로 폐하의 기마를 먹이십시오.”'],
 ['','통치자가 지도를 펼쳤다. 북쪽에서 내려다본 대륙은 정말로 셋으로 나뉘어 있었다. 같은 시각 서라의 무영은 창가에서 북쪽을 바라보고 있었고, 남월의 청호는 말없이 산성의 빗장을 걸고 있었다.'],
@@ -604,21 +604,21 @@ let f=Math.floor(p.land*.04*p.min/100+1200);if(S.pc==='서라국')f=Math.floor(f
  log('치국안민 반포','금화 +'+fmt(g)+', 군량 +'+fmt(f)+', 민심 +8');endTurn(p);
 }
 function draft(){if(S.hold)return M(HM);
- if(S.dd)return M('이번 턴에는 이미 징집했습니다. (턴당 1회)');snap();
+ if(S.dd)return M('이번 턴에는 이미 징집했습니다. (턴당 1회)');
  const p=clone(),c=draftCost(),n=tot(S.dr);
  if(!n)return M('징집할 병력을 선택하세요.');
  if(p.gold<c)return M('국고가 부족합니다!');
  if(p.food<=0)return M('군량이 고갈되어 징집할 수 없습니다!');
- K.forEach(k=>p.t[k]+=S.dr[k]);p.gold-=c;
+ snap();K.forEach(k=>p.t[k]+=S.dr[k]);p.gold-=c;
  log('군사 징집','금화 '+fmt(c)+' 소모, '+fmt(n)+'명 모집 (턴 소모 없음)');S.dr=z();S.pd=p;S.dd=true;S.m='';R();
 }
-function dip(a,t){if(S.hold)return M(HM);
+function dip(a,t){if(S.hold)return M(HM);S.un=null;
  const p=clone(),pen=hasSh('중원 황금상단')?.5:1,r=Math.random(),e=S.nd[t];
- if(a==='ally'){S.al[S.pc]=t;S.al[t]=S.pc;S.ten[t]=Math.max(0,S.ten[t]-30);log('동맹 결성',t+'와(과) 불가침 동맹을 맺었습니다.','d')}
- else if(a==='break'){delete S.al[S.pc];delete S.al[t];p.min-=10;S.ten[t]+=80;log('동맹 파기','배신으로 '+t+'와의 동맹을 파기했습니다! (민심 -10, 적대감 폭발)','c')}
+ if(a==='ally'){S.al[S.pc]=t;S.al[t]=S.pc;if(S.tg==='@'+t)S.tg='';S.ten[t]=Math.max(0,S.ten[t]-30);log('동맹 결성',t+'와(과) 불가침 동맹을 맺었습니다.','d')}
+ else if(a==='break'){delete S.al[S.pc];delete S.al[t];p.min=Math.max(0,p.min-10);S.ten[t]+=80;log('동맹 파기','배신으로 '+t+'와의 동맹을 파기했습니다! (민심 -10, 적대감 폭발)','c')}
  else if(a==='tribute'){
   if(r<.6){p.gold+=3000;p.food+=2000;S.ten[t]+=20;log('조공 강요 성공',t+'을(를) 겁박하여 금화 +3,000, 군량 +2,000을 얻었습니다.','d')}
-  else{p.min-=5;S.ten[t]+=Math.floor(30*pen);log('조공 강요 실패',t+'이(가) 요구를 거절하며 분노합니다. (민심 -5)','c')}
+  else{p.min=Math.max(0,p.min-5);S.ten[t]+=Math.floor(30*pen);log('조공 강요 실패',t+'이(가) 요구를 거절하며 분노합니다. (민심 -5)','c')}
  }else{
   if(r<.65){
    if(S.pc==='북풍국'){p.gold+=4000;e.gold=Math.max(0,e.gold-4000);log('책사 파견 (묵요)',t+'의 국고 4,000을 은밀히 탈취했습니다.','d')}
@@ -672,7 +672,7 @@ function nextStep(){
 }
 function ansDp(ok){
  const d=S.dp,n=d.from,p=S.pd;S.dp=null;
- if(d.type==='ally'){if(ok){S.al[S.pc]=n;S.al[n]=S.pc;S.ten[n]=Math.max(0,S.ten[n]-30);log('동맹 수락',n+'와(과) 동맹을 맺었습니다.','d')}else{S.ten[n]+=5;log('동맹 거절',n+'의 동맹 제의를 거절했습니다.','d')}}
+ if(d.type==='ally'){if(ok){S.al[S.pc]=n;S.al[n]=S.pc;if(S.tg==='@'+n)S.tg='';S.ten[n]=Math.max(0,S.ten[n]-30);log('동맹 수락',n+'와(과) 동맹을 맺었습니다.','d')}else{S.ten[n]+=5;log('동맹 거절',n+'의 동맹 제의를 거절했습니다.','d')}}
  else if(ok){p.gold-=3000;p.food-=2000;S.nd[n].gold+=3000;S.nd[n].food+=2000;S.ten[n]=Math.max(0,S.ten[n]-10);log('조공 납부',n+'에 금화 3,000, 군량 2,000을 바쳤습니다.','d')}
  else{S.ten[n]=Math.min(100,S.ten[n]+25);log('조공 거부',n+'의 요구를 거부했습니다. 적대감 +25 (침공 확률 상승)','c')}
  nextStep();
@@ -785,7 +785,7 @@ p.gold+=800*S.inv.com+(hasSh('중원 황금상단')?2500:0);p.food+=700*S.inv.fa
  alive().forEach(n=>{if(S.turn>=3&&Math.random()<.04){const e=S.nd[n],f=Math.random()<.5,l=Math.floor((f?e.food:e.gold)*.2);if(f)e.food-=l;else e.gold-=l;log('적국 재해 첩보','['+n+'] '+(f?'가뭄':'홍수')+'으로 '+(f?'군량 ':'금화 ')+fmt(l)+' 손실','sys',n)}});
  const up=Math.floor((tot(p.t)+gar(S.pc)*.5)*UPK);
  if(p.food>=up){p.food-=up;log('군량 소모','본국 '+fmt(tot(p.t))+'명 + 수비병 '+fmt(gar(S.pc))+'명(소모 절반) 유지에 군량 -'+fmt(up)+' (남은 군량 '+fmt(p.food)+')')}
- else{p.food=0;p.min-=10;log('자원 고갈','군량이 떨어져 민심이 폭락합니다! (민심 -10)','c')}
+ else{p.food=0;p.min=Math.max(0,p.min-10);log('자원 고갈','군량이 떨어져 민심이 폭락합니다! (민심 -10)','c')
  if(p.food>=up*3&&p.min<100)p.min++;
  if(p.min<=0){log('반란 발생','민심이 0이 되어 백성들이 궐기했습니다.','c');return over(0,'민심이 0이 되어 반란이 일어났습니다.')}
  rollDis(p);
@@ -898,7 +898,6 @@ const BIOI=(x,y)=>{let b=0,m=1e18;CK.forEach((k,i)=>{const v=(x-CAP[k][0]/2)**2+
  <g transform="translate(690,492)"><rect width="80" height="4" fill="#e7d9b0"/><rect width="40" height="4" fill="#0b1b2d" stroke="#e7d9b0" stroke-width=".6"/><text x="40" y="-3" text-anchor="middle" fill="#e7d9b0" font-size="9">대륙 지도</text></g>`;
  const blob='M-90,-20C-100,-70 -40,-95 20,-85C80,-80 110,-30 95,20C85,70 30,90 -30,80C-80,70 -95,30 -90,-20Z';
  const lab=(x,y,t,c,sz=11)=>`<text x="${x}" y="${y}" text-anchor="middle" font-size="${sz}" font-weight="bold" fill="${c}" stroke="#000" stroke-width="3" paint-order="stroke">${t}</text>`;
- Object.keys(CO).forEach(c=>{
    if(S.mt==='war')g+='<rect width="800" height="520" fill="#050810" opacity=".5" pointer-events="none"/>';
  const sumL=Object.keys(CO).reduce((a,n)=>a+(n===S.pc?S.pd.land:S.nd[n].alive?S.nd[n].land:0),0)||1;
  Object.keys(CO).forEach(c=>{
@@ -1062,7 +1061,7 @@ function bvStep(sc,b,dt){
 function bvResult(b){
  const sc=BV.sc,st=b.st;sc.fin=1;
  $$('brs').innerHTML=`<div class="text-center mt-2 fadein"><div class="text-4xl sm:text-6xl font-black drop-shadow-lg ${b.pw?'text-amber-400':'text-red-500'}">${b.msg}</div><div class="text-xs sm:text-sm text-amber-100 bg-black/55 rounded-lg px-3 py-1.5 inline-block mt-1 max-w-3xl whitespace-pre-line backdrop-blur-sm">${st.epi?st.epi+'\n':''}${st.end?'('+st.end+') ':''}${b.sum}</div></div>`;
- bvLog(bvEndLog(b));sfx(b.pw?WIN:LOSE);bvBtn(b);
+ bvLog(bvEndLog(b));sfx(b.pw?WIN:LOSE);if(typeof zEnd==='function')zEnd(b);bvBtn(b);
 }
 function interveneBt(id){
  if(!S||!S.bq||!S.bq.length)return;
@@ -1640,7 +1639,7 @@ function addMuteBtn(){
 bvInit=function(b){
  pInit(b);
  if(BV.sc){[].concat(BV.sc.A,BV.sc.B).forEach(initU)}
- bgmStart();
+ bgmStart();zStart();
 };
 bvSync=function(){
  pSync();
