@@ -785,7 +785,7 @@ p.gold+=800*S.inv.com+(hasSh('중원 황금상단')?2500:0);p.food+=700*S.inv.fa
  alive().forEach(n=>{if(S.turn>=3&&Math.random()<.04){const e=S.nd[n],f=Math.random()<.5,l=Math.floor((f?e.food:e.gold)*.2);if(f)e.food-=l;else e.gold-=l;log('적국 재해 첩보','['+n+'] '+(f?'가뭄':'홍수')+'으로 '+(f?'군량 ':'금화 ')+fmt(l)+' 손실','sys',n)}});
  const up=Math.floor((tot(p.t)+gar(S.pc)*.5)*UPK);
  if(p.food>=up){p.food-=up;log('군량 소모','본국 '+fmt(tot(p.t))+'명 + 수비병 '+fmt(gar(S.pc))+'명(소모 절반) 유지에 군량 -'+fmt(up)+' (남은 군량 '+fmt(p.food)+')')}
- else{p.food=0;p.min=Math.max(0,p.min-10);log('자원 고갈','군량이 떨어져 민심이 폭락합니다! (민심 -10)','c')
+ else{p.food=0;p.min=Math.max(0,p.min-10);log('자원 고갈','군량이 떨어져 민심이 폭락합니다! (민심 -10)','c')}
  if(p.food>=up*3&&p.min<100)p.min++;
  if(p.min<=0){log('반란 발생','민심이 0이 되어 백성들이 궐기했습니다.','c');return over(0,'민심이 0이 되어 반란이 일어났습니다.')}
  rollDis(p);
